@@ -1,0 +1,182 @@
+{
+  "categories": {
+    "armas": {
+      "nome": "🗡️ Armas & Equipamentos RPG",
+      "wildcard": "{sharp steel broadsword with gold hilt|heavy battle axe with carved runes|recurve elven bow with glowing quiver|magic wooden staff with crystal orb|iron heater shield with crest|shadow assassin daggers with purple sheen|heavy warhammer with spikes}",
+      "itens": [
+        { "label": "🎲 Qualquer Arma (Sorteio Wildcard)", "value": "{sharp steel broadsword with gold hilt|heavy battle axe with carved runes|recurve elven bow with glowing quiver|magic wooden staff with crystal orb|iron heater shield with crest|shadow assassin daggers with purple sheen|heavy warhammer with spikes}" },
+        { "label": "Espada Longa de Aço", "value": "sharp steel broadsword with golden crossguard" },
+        { "label": "Machado de Batalha Rúnico", "value": "heavy dual-blade battle axe with carved glowing runes" },
+        { "label": "Cajado Mágico com Orbe", "value": "ancient gnarled wooden staff crowned with glowing crystal orb" },
+        { "label": "Arco Élfico e Aljava", "value": "recurve wooden elven longbow with glowing arrows" },
+        { "label": "Adagas Sombrias Duplas", "value": "twin curved rogue daggers with dark poison coating" },
+        { "label": "Escudo Medieval com Brasão", "value": "reinforced iron kite shield with royal dragon crest" },
+        { "label": "Martelo de Guerra Sagrado", "value": "heavy paladin warhammer radiating golden light" }
+      ]
+    },
+    "pocoes": {
+      "nome": "🧪 Consumíveis & Poções Mágicas",
+      "wildcard": "{red glass health potion bottle with cork|blue glowing mana elixir flask|green bubbling poison vial|golden divine elixir with star sparkles|violet speed potion bottle with lightning aura}",
+      "itens": [
+        { "label": "🎲 Qualquer Poção (Sorteio Wildcard)", "value": "{red glass health potion bottle with cork|blue glowing mana elixir flask|green bubbling poison vial|golden divine elixir with star sparkles|violet speed potion bottle with lightning aura}" },
+        { "label": "Poção de Vida (Vermelha)", "value": "round glass bottle with glowing red healing potion and cork" },
+        { "label": "Poção de Mana (Azul)", "value": "elegant glass flask with swirling blue mana liquid" },
+        { "label": "Frasco de Veneno (Verde)", "value": "skull-shaped bottle with bubbling green venom and skull tag" },
+        { "label": "Elixir Dourado Sagrado", "value": "ornate crystal vial filled with glowing golden radiance" },
+        { "label": "Poção de Velocidade (Roxa)", "value": "triangular vial with crackling purple energy" }
+      ]
+    },
+    "tesouros": {
+      "nome": "💎 Tesouros, Gemas & Chaves",
+      "wildcard": "{faceted sparkling red ruby|brilliant cut blue sapphire gem|radiant cut green emerald jewel|ancient gold coins pile with sparkles|wooden iron-bound treasure chest overflowing with gems|antique ornate golden skeleton key}",
+      "itens": [
+        { "label": "🎲 Qualquer Tesouro (Sorteio Wildcard)", "value": "{faceted sparkling red ruby|brilliant cut blue sapphire gem|radiant cut green emerald jewel|ancient gold coins pile with sparkles|wooden iron-bound treasure chest overflowing with gems|antique ornate golden skeleton key}" },
+        { "label": "Rubi Vermelho Lapidado", "value": "faceted sparkling red ruby with bright light glints" },
+        { "label": "Safira Azul Mística", "value": "brilliant teardrop cut blue sapphire with inner glow" },
+        { "label": "Esmeralda Verde Encantada", "value": "square cut radiant green emerald jewel" },
+        { "label": "Pilha de Moedas de Ouro", "value": "gleaming stack of ancient gold fantasy coins" },
+        { "label": "Baú do Tesouro Aberto", "value": "wooden iron-bound treasure chest overflowing with gems" },
+        { "label": "Chave Dourada Antiga", "value": "intricate antique skeleton key forged from pure gold" }
+      ]
+    },
+    "herois": {
+      "nome": "👤 Heróis & Personagens (Chibi/Sprite)",
+      "wildcard": "{cute chibi knight in polished plate armor|chibi wizard in blue pointed hat holding wand|chibi rogue with dark cloak and face mask|chibi paladin with golden breastplate and halo|chibi elven ranger with green hood}",
+      "itens": [
+        { "label": "🎲 Qualquer Herói (Sorteio Wildcard)", "value": "{cute chibi knight in polished plate armor|chibi wizard in blue pointed hat holding wand|chibi rogue with dark cloak and face mask|chibi paladin with golden breastplate and halo|chibi elven ranger with green hood}" },
+        { "label": "Cavaleiro de Armadura", "value": "cute chibi brave knight with full metal plate armor and visor" },
+        { "label": "Maga com Chapéu Pontudo", "value": "cute chibi sorceress with tall blue witch hat and glowing wand" },
+        { "label": "Ladino com Capuz", "value": "stealthy chibi rogue wearing hooded dark cloak and mask" },
+        { "label": "Paladino Sagrado", "value": "valiant chibi paladin with silver armor and golden trim" },
+        { "label": "Arqueira da Floresta", "value": "nimble chibi elven archer with green tunic and long ears" }
+      ]
+    },
+    "heroinas_nsfw": {
+      "nome": "🔞 Heróinas & Garotas Picantes (NSFW / Ecchi Sprite)",
+      "wildcard": "{chibi 1girl sexy hero in micro lingerie, blushing, looking at viewer|1girl anime pixel art nude, cute proportions, blushing heavily, sitting on floor|1girl succubus chibi sprite in tight leather harness, bat wings, small horns, teasing pose|1girl cute anime archer with torn clothes, exposed cleavage and legs, panting|1girl blonde paladin in bikini armor, blushing, holding broken sword|1girl catgirl sprite in skimpy silk negligee, cat ears, twitching tail, lying down|1girl dark elf rogue in bondage ropes, tied up, embarrassed expression, shibari}",
+      "itens": [
+        { "label": "🎲 Qualquer Sprite NSFW (Sorteio Wildcard)", "value": "{chibi 1girl sexy hero in micro lingerie, blushing, looking at viewer|1girl anime pixel art nude, cute proportions, blushing heavily, sitting on floor|1girl succubus chibi sprite in tight leather harness, bat wings, small horns, teasing pose|1girl cute anime archer with torn clothes, exposed cleavage and legs, panting|1girl blonde paladin in bikini armor, blushing, holding broken sword|1girl catgirl sprite in skimpy silk negligee, cat ears, twitching tail, lying down|1girl dark elf rogue in bondage ropes, tied up, embarrassed expression, shibari}" },
+        { "label": "Heroína em Lingerie Sensual de Renda", "value": "1girl, cute chibi heroine wearing delicate black lace lingerie, bare shoulders, blushing cute face" },
+        { "label": "Menina Nua Artística / Pixel Nude", "value": "1girl, pure artistic pixel art nude, cute slender proportions, blushing cheeks, covering chest shyly" },
+        { "label": "Succubus Chibi em Traje de Couro", "value": "1girl, cute chibi succubus in skimpy leather strap harness, tiny bat wings, demon tail, playful wink" },
+        { "label": "Guerreira com Armadura Rasgada", "value": "1girl, brave anime warrior with battle-torn clothes, exposed cleavage, torn armor, heavy blush, breathless" },
+        { "label": "Paladina em Biquíni de Placas (Bikini Armor)", "value": "1girl, holy blonde paladin wearing shiny golden bikini armor, bare midriff, exposed thighs, shy gaze" },
+        { "label": "Neko / Catgirl em Camisola Transparente", "value": "1girl, cute catgirl sprite wearing sheer transparent negligee, cat ears, twitching tail, lying on side" },
+        { "label": "Ladina Amarrada (Shibari / Bondage)", "value": "1girl, dark elf rogue tangled in ropes, shibari bondage, blushing intensely, looking away pout" },
+        { "label": "Maga Travessa / Levantando a Saia", "value": "1girl, cute witch girl lifting robe skirt, cheeky smile, blushing face, sexy cute pose" }
+      ]
+    },
+    "monstros": {
+      "nome": "👾 Criaturas, Slimes & Monstros",
+      "wildcard": "{cute bouncy green slime with big shiny eyes|tiny red dragon whelp sitting with mini bat wings|skeleton warrior holding rusty sword|mischievous green goblin with leather pouch|cave bat with glowing red eyes}",
+      "itens": [
+        { "label": "🎲 Qualquer Monstro (Sorteio Wildcard)", "value": "{cute bouncy green slime with big shiny eyes|tiny red dragon whelp sitting with mini bat wings|skeleton warrior holding rusty sword|mischievous green goblin with leather pouch|cave bat with glowing red eyes}" },
+        { "label": "Slime Gelatinoso Verde", "value": "cute translucent green bouncy slime with big shiny eyes" },
+        { "label": "Dragão Bebê", "value": "adorable tiny red dragon whelp sitting with mini bat wings" },
+        { "label": "Esqueleto Guerreiro", "value": "retro skeleton minion sprite holding cracked round shield" },
+        { "label": "Goblin Trapaceiro", "value": "funny sneaky green goblin sprite with big ears" },
+        { "label": "Golem de Pedra", "value": "miniature stone elemental golem with glowing runic eyes" }
+      ]
+    },
+    "alimentos": {
+      "nome": "🍎 Alimentos & Sobrevivência",
+      "wildcard": "{glossy red apple with fresh green leaf|magic spotted red mushroom with sparkles|crispy roasted meat bone|rustic round loaf of bread|frothy wooden mug of cold tavern ale}",
+      "itens": [
+        { "label": "🎲 Qualquer Alimento (Sorteio Wildcard)", "value": "{glossy red apple with fresh green leaf|magic spotted red mushroom with sparkles|crispy roasted meat bone|rustic round loaf of bread|frothy wooden mug of cold tavern ale}" },
+        { "label": "Maçã Vermelha Fresca", "value": "glossy ripe red apple with green leaf and cute stem" },
+        { "label": "Cogumelo Mágico", "value": "mystical red toadstool mushroom with white polka dots" },
+        { "label": "Carne Assada com Osso", "value": "hearty cooked meat on bone, delicious rpg roast" },
+        { "label": "Pão Rústico", "value": "warm golden baked bread loaf with scoring marks" },
+        { "label": "Caneca de Cerveja da Taverna", "value": "wooden tankard full of frothy golden ale" }
+      ]
+    },
+    "cenario": {
+      "nome": "🏰 Props, Fogueiras & Cenário",
+      "wildcard": "{crackling campfire with wooden logs and embers|stone wall medieval torch with orange flame|explorer cozy cloth tent with lantern|ancient stone doorway portal with blue swirl|wooden tavern barrel with iron hoops}",
+      "itens": [
+        { "label": "🎲 Qualquer Prop (Sorteio Wildcard)", "value": "{crackling campfire with wooden logs and embers|stone wall medieval torch with orange flame|explorer cozy cloth tent with lantern|ancient stone doorway portal with blue swirl|wooden tavern barrel with iron hoops}" },
+        { "label": "Fogueira de Acampamento", "value": "cozy crackling campfire with burning wooden logs and floating embers" },
+        { "label": "Tocheiro de Pedra", "value": "dungeon wall stone sconce with bright burning flame" },
+        { "label": "Portal Arcano Místico", "value": "ancient stone archway with swirling blue magic portal" },
+        { "label": "Tenda de Expedição", "value": "quaint adventurer canvas tent pitched on grass prop" },
+        { "label": "Barril de Madeira", "value": "sturdy medieval wooden barrel with reinforced iron bands" }
+      ]
+    },
+    "aleatorio": {
+      "nome": "🎲 [ALEATÓRIO GERAL]",
+      "wildcard": "{sharp steel broadsword with gold hilt|heavy battle axe with carved runes|round glass bottle with glowing red healing potion|blue glowing mana elixir flask|faceted sparkling red ruby|wooden iron-bound treasure chest overflowing with gems|cute chibi knight in polished plate armor|cute bouncy green slime with big shiny eyes|glossy ripe red apple with green leaf|crackling campfire with burning wooden logs}",
+      "itens": [
+        { "label": "🎲 Sorteio Geral Livre (Qualquer Categoria Wildcard)", "value": "{sharp steel broadsword with gold hilt|heavy battle axe with carved runes|round glass bottle with glowing red healing potion|blue glowing mana elixir flask|faceted sparkling red ruby|wooden iron-bound treasure chest overflowing with gems|cute chibi knight in polished plate armor|cute bouncy green slime with big shiny eyes|glossy ripe red apple with green leaf|crackling campfire with burning wooden logs}" }
+      ]
+    }
+  },
+  "character_options": {
+    "races": [
+      { "v": "human", "l": "Humano(a)" },
+      { "v": "elf, long pointed ears", "l": "Elfo(a)" },
+      { "v": "dark elf, dark skin, pointed ears, silver hair", "l": "Elfo Negro / Dark Elf" },
+      { "v": "kitsune, fox ears, bushy fox tail", "l": "Kitsune (Raposa)" },
+      { "v": "catgirl, cat ears, cat tail", "l": "Neko / Catgirl (Gato)" },
+      { "v": "wolf girl, wolf ears, wolf tail", "l": "Lobo / Kemonomimi" },
+      { "v": "angel, glowing halo, feathered wings", "l": "Anjo(a) Sagrado" },
+      { "v": "demon girl, horns, bat wings, demon tail", "l": "Demônio / Succubus" },
+      { "v": "orc girl, green skin, tusks, muscular", "l": "Orc Guerreiro(a)" },
+      { "v": "dwarf girl, stout, braided hair", "l": "Anão / Anã da Montanha" },
+      { "v": "android, cyborg, mechanical joints", "l": "Cyborg / Androide" },
+      { "v": "dragon girl, horns, reptilian wings, scales", "l": "Dragão / Dracônica" },
+      { "v": "slime girl, translucent liquid body", "l": "Slime Girl / Gelatinosa" },
+      { "v": "ghost girl, translucent spectral body, floating", "l": "Fantasma / Eclética" }
+    ],
+    "genders": [
+      { "v": "1girl, female", "l": "Garota / Feminino" },
+      { "v": "1boy, male", "l": "Garoto / Masculino" },
+      { "v": "androgynous", "l": "Andrógino / Sem Gênero Definido" }
+    ],
+    "outfits_sfw": [
+      { "v": "polished silver plate armor with gold engravings", "l": "Armadura de Placas de Aço Polido" },
+      { "v": "flowing royal wizard robes with glowing runes", "l": "Manto Arcano de Mago com Runas" },
+      { "v": "dark leather assassin tunic with hood", "l": "Armadura de Couro Sombria de Ladino" },
+      { "v": "golden paladin battle armor with holy cape", "l": "Armadura Dourada Sagrada de Paladino" },
+      { "v": "green forest ranger tunic with leather bracers", "l": "Túnica de Patrulheiro da Floresta" },
+      { "v": "adventurer tunic, belts, travel cloak", "l": "Traje Clássico de Aventureiro" }
+    ],
+    "outfits_nsfw": [
+      { "v": "delicate black lace lingerie, bare shoulders, sheer fabric", "l": "🔞 [NSFW] Lingerie de Renda Sensual" },
+      { "v": "micro bikini, skimpy bikini straps, bare midriff and thighs", "l": "🔞 [NSFW] Micro Biquíni Revelador" },
+      { "v": "completely nude, naked, bare breasts, bare hips, blush", "l": "🔞 [NSFW] Completamente Nua (Nude Sprite)" },
+      { "v": "sexy bikini plate armor, exposed cleavage and midriff", "l": "🔞 [NSFW] Armadura de Biquíni Metálico" },
+      { "v": "battle-torn clothes, ripped fabric, exposed cleavage and legs", "l": "🔞 [NSFW] Roupas Rasgadas de Batalha" },
+      { "v": "tight black leather strap harness, succubus outfit", "l": "🔞 [NSFW] Arnês de Couro Succubus" },
+      { "v": "tied up in ropes, shibari bondage, tight binding", "l": "🔞 [NSFW] Amarrada em Cordas (Shibari)" },
+      { "v": "sheer transparent silk negligee, see-through nightgown", "l": "🔞 [NSFW] Camisola Transparente" }
+    ],
+    "poses_sfw": [
+      { "v": "standing, heroic battle stance, facing viewer", "l": "Postura de Batalha Heroica" },
+      { "v": "casting spell pose, hands forward with magic glow", "l": "Conjurando Magia com as Mãos" },
+      { "v": "ready combat stance, weapon drawn", "l": "Arma Empunhada Pronta para o Combate" },
+      { "v": "victory pose, raising hand with cheerful smile", "l": "Pose de Vitória Sorrindo" },
+      { "v": "idle standing pose, relaxed stance", "l": "Postura Relaxada / Parado" },
+      { "v": "running forward, dynamic sprint", "l": "Correndo Dinâmico" }
+    ],
+    "poses_nsfw": [
+      { "v": "lying on back, seductive gaze, arched back, blush", "l": "🔞 [NSFW] Deitada de Costas Sensual" },
+      { "v": "all fours pose, looking back over shoulder, arched waist", "l": "🔞 [NSFW] De Quatro Olhando para Trás" },
+      { "v": "kneeling pose looking up, hands between thighs, heavy blush", "l": "🔞 [NSFW] De Joelhos Olhando para Cima" },
+      { "v": "sensual dancing pose, tilted hips, seductive smile", "l": "🔞 [NSFW] Pose Sensual Rebolando" }
+    ],
+    "activities_sfw": [
+      { "v": "holding glowing weapon, prepared for adventure", "l": "Empunhando Arma Encantada Brilhante" },
+      { "v": "holding mystical open spellbook with sparkles", "l": "Lendo Grimório com Partículas Mágicas" },
+      { "v": "pointing sword forward bravely", "l": "Apontando Espada Adiante" },
+      { "v": "aiming bow with glowing magic arrow", "l": "Mirando Arco com Flecha de Energia" },
+      { "v": "shield raised in solid defense", "l": "Erguendo Escudo em Defesa Sólida" }
+    ],
+    "activities_nsfw": [
+      { "v": "pulling down lace panties, teasing, blushing intensely", "l": "🔞 [NSFW] Puxando a Calcinha / Despindo-se" },
+      { "v": "shyly covering chest with hands, flushed cheeks, ahegao smile", "l": "🔞 [NSFW] Cobrindo os Seios Envergonhada" },
+      { "v": "lewd ahegao expression, open mouth, tongue out, drool", "l": "🔞 [NSFW] Expressão Ahegao / Lasciva" },
+      { "v": "covered in glistening translucent slime droplets, wet skin", "l": "🔞 [NSFW] Pele Molhada de Slime Brilhante" },
+      { "v": "entangled in living mystical tentacles, struggling blush", "l": "🔞 [NSFW] Tentáculos Enroscados no Corpo" }
+    ]
+  }
+}

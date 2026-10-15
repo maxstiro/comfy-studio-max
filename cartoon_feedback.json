@@ -1,0 +1,86 @@
+[
+  {
+    "timestamp": 1792083409.6063662,
+    "filename": "Cartoon_Anime_00007_.png",
+    "rating": 5,
+    "weights": {
+      "cartoon_lora_strength": 1.05,
+      "booster_lora_strength": 0.7,
+      "style_strength": 0.48,
+      "face_denoise": 0.32
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792083440.4360483,
+    "filename": "Cartoon_Anime_00007_.png",
+    "rating": 5,
+    "weights": {
+      "cartoon_lora_strength": 1.05,
+      "booster_lora_strength": 0.7,
+      "style_strength": 0.48,
+      "face_denoise": 0.32
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792087605.8636098,
+    "filename": "Cartoon_Anime_00006_.png",
+    "rating": 4,
+    "weights": {
+      "cartoon_lora_strength": 0.9,
+      "booster_lora_strength": 0.4,
+      "style_strength": 0.48,
+      "face_denoise": 0.26
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792087626.7285814,
+    "filename": "Cartoon_Anime_00003_.png",
+    "rating": 1,
+    "weights": {
+      "cartoon_lora_strength": 0.9,
+      "booster_lora_strength": 0.4,
+      "style_strength": 0.48,
+      "face_denoise": 0.26
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792087628.2812917,
+    "filename": "Cartoon_Anime_00002_.png",
+    "rating": 1,
+    "weights": {
+      "cartoon_lora_strength": 0.9,
+      "booster_lora_strength": 0.4,
+      "style_strength": 0.48,
+      "face_denoise": 0.26
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792087629.5011983,
+    "filename": "Cartoon_Anime_00001_.png",
+    "rating": 1,
+    "weights": {
+      "cartoon_lora_strength": 0.9,
+      "booster_lora_strength": 0.4,
+      "style_strength": 0.48,
+      "face_denoise": 0.26
+    },
+    "tags": ""
+  },
+  {
+    "timestamp": 1792087632.2267194,
+    "filename": "Cartoon_Anime_00007_.png",
+    "rating": 1,
+    "weights": {
+      "cartoon_lora_strength": 0.9,
+      "booster_lora_strength": 0.4,
+      "style_strength": 0.48,
+      "face_denoise": 0.26
+    },
+    "tags": ""
+  }
+]

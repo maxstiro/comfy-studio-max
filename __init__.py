@@ -763,6 +763,21 @@ class PromptReviewer:
         logs = []
         raw_tags = [t.strip() for t in prompt.split(',') if t.strip()]
         
+        # 0. Sanitização Defensiva de Tags Problemáticas Globais
+        # (A) arched_spine -> arched_back (evita renderização de ossos/espinha visíveis em roupas translúcidas)
+        # (B) bedroom_eyes -> heavy_lids, seductive_eyes (evita que o modelo force cenário de quarto/cama)
+        sanitized_raw = []
+        for t in raw_tags:
+            ct = t
+            if 'arched_spine' in ct.lower():
+                ct = re.sub(r'\barched_spine\b', 'arched_back', ct, flags=re.IGNORECASE)
+                logs.append('[Spine Converted] Substituído "arched_spine" por "arched_back" para evitar ossos/espinha visíveis.')
+            if 'bedroom_eyes' in ct.lower():
+                ct = re.sub(r'\bbedroom_eyes\b', 'heavy_lids, seductive_eyes', ct, flags=re.IGNORECASE)
+                logs.append('[Bedroom Cleansed] Substituído "bedroom_eyes" por "heavy_lids, seductive_eyes" para não forçar cenário de quarto.')
+            sanitized_raw.append(ct)
+        raw_tags = sanitized_raw
+
         # 1. Deduplicacao preservando ordem
         if deduplicate:
             seen = set()
@@ -1219,13 +1234,17 @@ class PromptReviewer:
             c_name = detected_creatures[0]
             c_desc, c_genital = non_human_creatures[c_name]
             
-            # Purgar poses e membros que forçam pernas humanas
+            # Purgar poses e membros que forçam pernas humanas (inclusive long_legs, trembling_legs, coxas)
             leg_conflicts = {
                 'crossed_legs', 'one_leg_lifted', 'bare_legs', 'thighs_spread', 
                 'kicking_feet', 'legs_apart', 'leg_dangling', 'bare_feet', 
                 'walking_away', 'tiptoe', 'runner_stance', 'pigeon-toed',
                 'legs_spread', 'kneeling_on_bed', 'w-sitting', 'sitting_cross-legged',
-                'human_legs', 'human_feet', 'human_knees', 'feet', 'toes'
+                'human_legs', 'human_feet', 'human_knees', 'feet', 'toes',
+                'long_legs', 'trembling_legs', 'straight_legs', 'shapely_legs',
+                'toned_legs', 'smooth_legs', 'm-shaped_legs', 'legs_in_the_air',
+                'parting_own_thighs', 'caressing_own_thighs', 'thighs', 'toned_thighs',
+                'plump_thighs', 'thick_thighs', 'slender_thighs', 'knees', 'shins', 'ankles'
             }
             new_tags = []
             purged_legs = []
@@ -1237,15 +1256,28 @@ class PromptReviewer:
                     new_tags.append(t)
             tags = new_tags
             if purged_legs:
-                logs.append(f'[Monster Anatomy Enforced] Removidas poses de pernas humanas {purged_legs} para {c_name}.')
+                logs.append(f'[Monster Anatomy Enforced] Removidas referencias a pernas humanas {purged_legs} para {c_name}.')
+
+            # Para criaturas com cauda aquática ou serpentina (mermaid, lamia, scylla):
+            # remover posturas bípedes (standing, kneeling) que forçam o modelo a desenhar pernas bípedes
+            if c_name in ['mermaid', 'lamia', 'scylla', 'scylla_girl']:
+                bipedal_poses = {'standing', 'kneeling', 'walking', 'running', 'tiptoe', 'runner_stance', 'weight_on_one_leg', 'one_leg_lifted', 'confident_stance', 'crawling_forward'}
+                bipedal_purged = [t for t in tags if any(bp == t.lower().strip() or f' {bp} ' in f' {t.lower()} ' for bp in bipedal_poses)]
+                if bipedal_purged:
+                    tags = [t for t in tags if t not in bipedal_purged]
+                    logs.append(f'[Tail Purity] Removidas posturas bípedes {bipedal_purged} para {c_name}.')
+                
+                if c_name == 'mermaid':
+                    if not any('resting_on_tail' in t.lower() or 'curved_tail' in t.lower() for t in tags):
+                        tags.append('(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.5)')
+                        logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica.')
 
             # Garantir tags positivas de reforço anatômico sem pernas humanas
             if not any('no_human_legs' in t.lower() for t in tags):
-                tags.append('(no_human_legs:1.5), (no_legs:1.4)')
-                logs.append(f'[Monster Anatomy Enforced] Injetado "(no_human_legs:1.5), (no_legs:1.4)" para {c_name} ({c_desc}).')
+                tags.append('(no_human_legs:1.6), (no_legs:1.5), (no_feet:1.5)')
+                logs.append(f'[Monster Anatomy Enforced] Injetado "(no_human_legs:1.6), (no_legs:1.5)" para {c_name} ({c_desc}).')
 
             # Adaptação Genital e de Cor para Criaturas Não-Humanas
-            # Se houver menção a genitália humana (bare_pussy, pussy, vaginal, fingering, etc.), adapta para a anatomia e cor da espécie
             genital_signals = {'pussy', 'bare_pussy', 'exposed_pussy', 'vaginal', 'fingering', 'cunnilingus', 'insertion', 'dildo', 'masturbation', 'crotchless'}
             has_genital_intent = any(any(gs in t.lower() for gs in genital_signals) for t in tags)
             if has_genital_intent:
@@ -1265,8 +1297,16 @@ class PromptReviewer:
                     tags.append(c_genital)
                     logs.append(f'[Monster Genital Enforced] Injetada genitalia de especie/cor ({c_genital}) para {c_name}.')
 
-        # 14. Slime Girl: Supressão de Cores Humanas de Cabelo e Olhos (Textura Líquida Homogênea)
-        if 'slime_girl' in full_text_lower or 'slime_body' in full_text_lower:
+        # 14. Slimes e Elementais: Supressão de Cores Humanas e Consistência Elemental
+        elemental_types = {
+            'air_elemental_girl': ('ar/vento', 'swirling_breeze_hair, (translucent_white_hair:1.4), (glowing_white_eyes:1.4), (misty_body:1.4), ethereal'),
+            'water_elemental_girl': ('agua/liquido', '(liquid_hair:1.4), (translucent_cyan_hair:1.4), (glowing_cyan_eyes:1.4), (liquid_body:1.4), aquatic_glow'),
+            'fire_elemental_girl': ('fogo/chamas', '(flame_hair:1.4), (blazing_fire_hair:1.4), (glowing_amber_eyes:1.4), (fire_elemental_body:1.4), fiery_aura'),
+            'earth_elemental_girl': ('terra/cristais', '(crystalline_hair:1.4), (stone_textured_skin:1.3), (glowing_gold_eyes:1.4), rocky_accents')
+        }
+        is_elemental = any(k in full_text_lower for k in elemental_types)
+        is_slime = 'slime_girl' in full_text_lower or 'slime_body' in full_text_lower
+        if is_slime or is_elemental:
             human_hair_colors = {'blonde_hair', 'brown_hair', 'black_hair', 'red_hair', 'silver_hair', 'white_hair', 'pink_hair', 'blue_hair', 'green_hair', 'purple_hair', 'orange_hair', 'yellow_hair', 'grey_hair', 'gray_hair'}
             human_eye_colors = {'blue_eyes', 'green_eyes', 'brown_eyes', 'red_eyes', 'amber_eyes', 'hazel_eyes', 'purple_eyes', 'yellow_eyes', 'gold_eyes', 'golden_eyes', 'grey_eyes', 'gray_eyes'}
             purged_colors = []
@@ -1279,10 +1319,14 @@ class PromptReviewer:
                     new_tags.append(t)
             tags = new_tags
             if purged_colors:
-                logs.append(f'[Slime Girl Cleanse] Removidas definicoes humanas de cabelo/olhos {purged_colors} para consistencia liquida.')
-            if not any('translucent_hair' in t.lower() for t in tags):
+                logs.append(f'[Elemental Cleanse] Removidas definicoes humanas de cabelo/olhos {purged_colors} para consistencia elemental.')
+            if is_slime and not any('translucent_hair' in t.lower() for t in tags):
                 tags.append('(slime_hair:1.4), (translucent_hair:1.4), (translucent_eyes:1.3), matching_slime_color')
-                logs.append('[Slime Girl Uniformity] Injetado cabelo e olhos de slime translucidos com cor uniforme.')
+            for el_k, (el_desc, el_injected) in elemental_types.items():
+                if el_k in full_text_lower:
+                    tags.append(el_injected)
+                    logs.append(f'[Elemental Trait Enforced] Injetadas caracteristicas puras de {el_desc}.')
+                    break
 
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real (See-Through Body)
         ghost_signals = {'ghost_girl', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit'}
@@ -1314,6 +1358,26 @@ class PromptReviewer:
             else:
                 cleaned_tags.append(t)
         tags = cleaned_tags
+
+        # 17. Prevenção de Cabeças Flutuantes / Rostos Fantasmas quando Parceiro está Fora de Quadro (male_out_of_frame)
+        if 'male_out_of_frame' in full_text_lower or 'faceless_male' in full_text_lower:
+            head_contact_actions = {
+                'tender_whispering', 'whispering_in_ear', 'whispering', 'intense_gaze',
+                'eye_contact_with_partner', 'kissing', 'french_kiss', 'deep_kiss',
+                'forehead_touch', 'mouth_to_mouth', 'looking_into_each_others_eyes'
+            }
+            new_tags = []
+            purged_contacts = []
+            for t in tags:
+                tl = t.lower().strip()
+                if any(hca in tl for hca in head_contact_actions):
+                    purged_contacts.append(t)
+                else:
+                    new_tags.append(t)
+            if purged_contacts:
+                new_tags.append('head_tilted_back, pleasure_face, heavy_breathing, blush')
+                tags = new_tags
+                logs.append(f'[Out-of-Frame Cleanse] Removidas acoes de contato facial {purged_contacts} pois o parceiro esta fora de quadro (male_out_of_frame), evitando cabecas flutuantes deformadas.')
 
         reviewed_prompt = ', '.join(tags)
         log_summary = '\n'.join(logs) if logs else '[OK] Nenhum conflito detectado no prompt.'
@@ -2994,11 +3058,13 @@ async def api_combo_tester_generate_set(request):
                     prompt_copy["41"]["inputs"]["populated_text"] = ["89", 0]
                     prompt_copy["41"]["inputs"]["mode"] = "fixed"
 
-                # Garantir bloqueio de câmeras, velas, peras e pernas humanas em monstros no Node 37 (Negativo base)
+                # Garantir bloqueio de câmeras, velas, peras, cabeças extras/desmembradas e pernas humanas no Node 37 (Negativo base)
                 if "37" in prompt_copy and "inputs" in prompt_copy["37"]:
                     n37_val = str(prompt_copy["37"]["inputs"].get("value", ""))
                     if "camera" not in n37_val:
                         n37_val += ", camera, tripod, handheld_camera, camera_lens, candles, candle, candlestick, pear, pears, fruit"
+                    if "floating_head" not in n37_val:
+                        n37_val += ", ((floating_head, disembodied_head, extra_heads, second_head:1.4))"
                     if is_sfw:
                         n37_val += ", nsfw, nude, naked, nipples, pussy, breasts, bare_breasts, cleavage, suggestive, explicit"
                     all_prompt_texts = " ".join([
@@ -3006,7 +3072,7 @@ async def api_combo_tester_generate_set(request):
                         for v in prompt_copy.values() if isinstance(v, dict)
                     ]).lower()
                     if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "arachne", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "spider_lower_body", "tentacles_lower_body"]):
-                        n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.5))"
+                        n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
                 payload = {

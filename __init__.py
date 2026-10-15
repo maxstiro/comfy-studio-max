@@ -671,12 +671,21 @@ LORA_TRIGGER_REGISTRY = {
 }
 
 def find_lora_trigger(lora_name: str):
-    clean = lora_name.lower().replace('.safetensors', '').replace('\\', '/').split('/')[-1].strip()
+    if not lora_name:
+        return None
+    raw = lora_name.replace('\\', '/').split('/')[-1]
+    clean = raw.lower().replace('.safetensors', '').strip()
     if clean in LORA_TRIGGER_REGISTRY:
         return LORA_TRIGGER_REGISTRY[clean]
     for k, v in LORA_TRIGGER_REGISTRY.items():
         if k in clean or clean in k:
             return v
+    import re
+    match = re.search(r'\(([^)]+)\)', raw)
+    if match:
+        extracted = match.group(1).strip()
+        if extracted:
+            return extracted
     return None
 
 def _try_hook_rgthree():
@@ -707,6 +716,9 @@ def _try_hook_rgthree():
     except Exception:
         pass
 
+# Ativação antecipada do hook caso rgthree já esteja nos módulos carregados
+_try_hook_rgthree()
+
 
 # --- NÓ CUSTOMIZADO: PROMPT REVIEWER & RESOLVEDOR DE CONFLITOS ---
 class PromptReviewer:
@@ -734,6 +746,7 @@ class PromptReviewer:
             },
             "optional": {
                 "opt_model": ("MODEL",),
+                "opt_lora_triggers": ("STRING", {"default": "", "multiline": True}),
             }
         }
 
@@ -743,7 +756,7 @@ class PromptReviewer:
     CATEGORY = "conditioning/text"
 
     def review_prompt(self, prompt, resolve_clothing=True, resolve_pose=True, resolve_gaze=True, 
-                      resolve_oral=True, auto_lora_triggers=True, deduplicate=True, opt_model=None):
+                      resolve_oral=True, auto_lora_triggers=True, deduplicate=True, opt_model=None, opt_lora_triggers=""):
         import re
         _try_hook_rgthree()
 
@@ -812,12 +825,26 @@ class PromptReviewer:
                               'vaginal', 'anal', 'spread_legs', 'legs_spread_in_m-shape', 'cunnilingus', 'dildo', 'insertion'}
             is_lower_exposed = any(sig in full_text_lower for sig in explicit_lower)
             is_totally_naked = any(sig in full_text_lower for sig in {'completely_nude', 'completely_naked', 'naked', 'nude'})
-            is_nsfw_scene = any(sig in full_text_lower for sig in ['nsfw', 'pussy', 'bare_breasts', 'masturbation', 'fingering', 'penetration', 'sex']) or is_lower_exposed or is_totally_naked
+            is_bottomless = is_totally_naked or is_lower_exposed or any(sig in full_text_lower for sig in {'bottomless', 'no_panties', 'bare_ass', 'lifted_skirt, no_panties'})
+            is_topless = is_totally_naked or any(sig in full_text_lower for sig in {'topless', 'bare_breasts', 'exposed_breasts'})
+            is_nsfw_scene = any(sig in full_text_lower for sig in ['nsfw', 'pussy', 'bare_breasts', 'masturbation', 'fingering', 'penetration', 'sex']) or is_bottomless or is_topless
 
-            # Purgar tags proibidas de Danbooru que geram tecidos deformados "pela metade" ou toalhas soltas
-            bad_partial_tags = {'panties_aside', 'pulling_panties_aside', 'bloomers_pulled_aside', 'shorts_pulled_down', 
-                                'pulled_down_jeans', 'pulled_down_pants', 'unbuttoned_fly', 'one_breast_exposed', 
-                                'slipping_towel', 'slipping_down', 'one_strap_slipping_down'}
+            # Tags de manipulação/puxada de calcinha e roupas instáveis
+            panties_actions_aside = {
+                'panties_aside', 'pulling_panties_aside', 'pulling_panties_to_the_side', 
+                'bloomers_pulled_aside', 'underwear_aside'
+            }
+            panties_actions_down = {
+                'pulling_panties_down', 'pulling_down_panties', 'slowly_lowering_panties', 
+                'lowering_panties', 'taking_off_panties', 'removing_panties', 'adjusting_panties', 
+                'panties_down', 'panties_around_one_ankle', 'panties_around_ankles'
+            }
+            all_panties_actions = panties_actions_aside | panties_actions_down
+
+            other_bad_partials = {
+                'shorts_pulled_down', 'pulled_down_jeans', 'pulled_down_pants', 'unbuttoned_fly', 
+                'one_breast_exposed', 'slipping_towel', 'slipping_down', 'one_strap_slipping_down'
+            }
 
             new_tags = []
             for t in tags:
@@ -825,57 +852,99 @@ class PromptReviewer:
 
                 # Eliminar toalhas soltas em cenas íntimas / NSFW
                 if is_nsfw_scene and any(tw in tl for tw in ['towel', 'bath_towel', 'slipping_towel', 'wrapped_in_towel']):
-                    logs.append(f'[Towel Conflict] Removida toalha \"{t}\" em cena NSFW para evitar pedacos de pano deslocados.')
+                    logs.append(f'[Towel Conflict] Removida toalha "{t}" em cena NSFW para evitar pedacos de pano deslocados.')
                     continue
 
-                # Eliminar tags de roupas puxadas pela metade
-                if any(bp in tl for bp in bad_partial_tags):
+                # Se personagem está sem calcinha / bottomless / nude, resolver qualquer ação de calcinha conflitante
+                if is_bottomless:
+                    # Substituir ações de puxar calcinha de lado por carícia/abertura de coxas
+                    if any(pa in tl for pa in panties_actions_aside):
+                        cleaned_t = t
+                        for pa in panties_actions_aside:
+                            cleaned_t = re.sub(rf'\b{pa}\b', 'parting_own_thighs, teasing', cleaned_t, flags=re.IGNORECASE)
+                        cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
+                        logs.append(f'[Panties Action Converted] Substituida acao de calcinha de lado "{t}" por "parting_own_thighs, teasing" pois personagem esta bottomless/nude.')
+                        t = cleaned_t
+                        tl = t.lower()
+
+                    # Substituir ações de abaixar calcinha por acariciar as coxas
+                    if any(pd in tl for pd in panties_actions_down):
+                        cleaned_t = t
+                        for pd in panties_actions_down:
+                            cleaned_t = re.sub(rf'\b{pd}\b', 'caressing_own_thighs, teasing', cleaned_t, flags=re.IGNORECASE)
+                        cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
+                        logs.append(f'[Panties Action Converted] Substituida acao de abaixar calcinha "{t}" por "caressing_own_thighs, teasing" pois personagem esta bottomless/nude.')
+                        t = cleaned_t
+                        tl = t.lower()
+
+                    # Se a tag for exclusivamente uma calcinha física e personagem é bottomless / no_panties / completely_nude
+                    if any(p_kw in tl for p_kw in ['panties', 'underwear', 'bloomers']) and 'no_panties' not in tl:
+                        if not any(keep in tl for keep in ['pulling', 'striptease', 'touching', 'caressing', 'parting']):
+                            logs.append(f'[Clothing Conflict] Removida calcinha "{t}" conflitante com bottomless/no_panties.')
+                            continue
+
+                # Se personagem está topless / sem sutiã, resolver ações de sutiã
+                if is_topless:
+                    if any(ba in tl for ba in ['unhooking_bra', 'bra_half_unhooked', 'pulling_down_bra', 'pulling_bra_aside']):
+                        cleaned_t = t
+                        for ba in ['unhooking_bra', 'bra_half_unhooked', 'pulling_down_bra', 'pulling_bra_aside']:
+                            cleaned_t = re.sub(rf'\b{ba}\b', 'cupping_breast', cleaned_t, flags=re.IGNORECASE)
+                        cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
+                        logs.append(f'[Bra Action Converted] Substituida acao de sutia "{t}" por "cupping_breast" pois personagem esta topless/nude.')
+                        t = cleaned_t
+                        tl = t.lower()
+                    if is_totally_naked and any(b_kw in tl for b_kw in ['bra', 'sheer_bra', 'lace_bra']):
+                        logs.append(f'[Clothing Conflict] Removido sutia "{t}" pois personagem esta completely_nude.')
+                        continue
+
+                # Eliminar outras tags de roupas puxadas pela metade
+                if any(bp in tl for bp in other_bad_partials):
                     cleaned_t = t
-                    for bp in bad_partial_tags:
+                    for bp in other_bad_partials:
                         cleaned_t = re.sub(rf'\b{bp}\b', '', cleaned_t, flags=re.IGNORECASE)
                     cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
                     if not cleaned_t:
-                        logs.append(f'[Partial Clothing Removed] Removida tag instavel \"{t}\".')
+                        logs.append(f'[Partial Clothing Removed] Removida tag instavel "{t}".')
                         continue
                     t = cleaned_t
                     tl = t.lower()
 
                 # Nudez total: remove qualquer peça casual restante
                 if is_totally_naked:
-                    if any(c in tl for c in ['jeans', 'pants', 'trousers', 'shorts', 'skirt', 'dress', 'shirt', 'sweater', 'hoodie', 'jacket', 't-shirt', 'tank_top', 'blouse', 'coat', 'pajamas', 'yukata', 'casual_clothes', 'towel']):
-                        logs.append(f'[Clothing Conflict] Removida roupa \"{t}\" por presenca de nudez total (completely_naked).')
+                    if any(c in tl for c in ['jeans', 'pants', 'trousers', 'shorts', 'skirt', 'dress', 'shirt', 'sweater', 'hoodie', 'jacket', 't-shirt', 'tank_top', 'blouse', 'coat', 'pajamas', 'yukata', 'casual_clothes', 'towel', 'lingerie', 'underwear', 'panties', 'bra']):
+                        logs.append(f'[Clothing Conflict] Removida roupa "{t}" por presenca de nudez total (completely_naked).')
                         continue
 
                 # Atividade/Exposição genital ativa: NUNCA usar calcinha de lado (panties_aside), usar nudez limpa
                 if is_lower_exposed:
                     if any(c in tl for c in ['blue_jeans', 'jeans', 'tight_pants', 'pants', 'trousers']):
                         new_t = 'bottomless, bare_pussy, bare_hips'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> \"{new_t}\" (sem calcas amontoadas).')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (sem calcas amontoadas).')
                         new_tags.append(new_t)
                         continue
                     elif any(c in tl for c in ['denim_shorts', 'shorts', 'tiny_pajama_shorts', 'sweatpants']):
                         new_t = 'bottomless, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> \"{new_t}\" (removido short pela metade).')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (removido short pela metade).')
                         new_tags.append(new_t)
                         continue
                     elif any(c in tl for c in ['leggings', 'tights', 'pantyhose']):
                         new_t = 'thighhighs, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> \"{new_t}\" (substituido por thighhighs sem rasgo).')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (substituido por thighhighs sem rasgo).')
                         new_tags.append(new_t)
                         continue
                     elif any(c in tl for c in ['pleated_skirt', 'miniskirt', 'skirt', 'summer_yukata']) and 'lift' not in tl:
                         new_t = f'{t}, lifted_skirt, no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> saia levantada sem calcinha por baixo.')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> saia levantada sem calcinha por baixo.')
                         new_tags.append(new_t)
                         continue
                     elif any(c in tl for c in ['sundress', 'dress', 'slip_dress']) and 'lift' not in tl:
                         new_t = f'{t}, lifted_dress, no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> vestido levantado sem calcinha por baixo.')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> vestido levantado sem calcinha por baixo.')
                         new_tags.append(new_t)
                         continue
                     elif any(c in tl for c in ['panties', 'underwear', 'bloomers']):
                         new_t = 'no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado \"{t}\" -> \"{new_t}\" (removida calcinha parcial para evitar retalhos).')
+                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (removida calcinha parcial para evitar retalhos).')
                         new_tags.append(new_t)
                         continue
 
@@ -951,16 +1020,24 @@ class PromptReviewer:
             clean_text = re.sub(r'<lora:[^>]+>', '', ' '.join(tags))
             clean_tags_lower = [t.strip().lower() for t in clean_text.split(',') if t.strip()]
 
-            # (A) Detectar LoRAs chamados no texto <lora:nome:peso>
+            # (A) Detectar LoRAs explicitamente passados via opt_lora_triggers (ex: Combo Tester)
+            if opt_lora_triggers:
+                for direct_trig in [dt.strip() for dt in opt_lora_triggers.split(',') if dt.strip()]:
+                    if not any(direct_trig.lower() == ct or direct_trig.lower() in ct for ct in clean_tags_lower):
+                        tags.append(direct_trig)
+                        clean_tags_lower.append(direct_trig.lower())
+                        logs.append(f'[LoRA Trigger Direct Injected] Injetado trigger "{direct_trig}" de opt_lora_triggers.')
+
+            # (B) Detectar LoRAs chamados no texto <lora:nome:peso>
             lora_text_calls = re.findall(r'<lora:([^:>]+)(?::[^>]+)?>', ' '.join(tags))
             for lc in lora_text_calls:
                 trig = find_lora_trigger(lc)
                 if trig and not any(trig.lower() == ct or trig.lower() in ct for ct in clean_tags_lower):
                     tags.append(trig)
                     clean_tags_lower.append(trig.lower())
-                    logs.append(f'[LoRA Trigger Auto-Injected] Injetado trigger \"{trig}\" para o LoRA \"{lc}\".')
+                    logs.append(f'[LoRA Trigger Auto-Injected] Injetado trigger "{trig}" para o LoRA "{lc}".')
 
-            # (B) Detectar LoRAs ativados no Power Lora Loader (via opt_model)
+            # (C) Detectar LoRAs ativados no Power Lora Loader (via opt_model)
             if opt_model is not None:
                 active_loras = getattr(opt_model, '_applied_loras', [])
                 for al in active_loras:
@@ -968,7 +1045,7 @@ class PromptReviewer:
                     if trig and not any(trig.lower() == ct or trig.lower() in ct for ct in clean_tags_lower):
                         tags.append(trig)
                         clean_tags_lower.append(trig.lower())
-                        logs.append(f'[LoRA Trigger Auto-Injected (PowerLoader)] Injetado trigger \"{trig}\" para LoRA ativo \"{al}\".')
+                        logs.append(f'[LoRA Trigger Auto-Injected (PowerLoader)] Injetado trigger "{trig}" para LoRA ativo "{al}".')
         # 7. Otimizacao de Estilo AMOLED (Predominantemente Preto + Linhas Neon + Destaques Minimos)
         full_text_lower = ' '.join(tags).lower()
         amoled_triggers = {
@@ -2628,8 +2705,16 @@ async def api_combo_tester_generate_set(request):
             if "6" in base_prompt and "inputs" in base_prompt["6"]:
                 base_prompt["6"]["inputs"]["value"] = 1344
 
-        # 3. Configurar LoRAs (Node 47 - Power Lora Loader)
+        # 3. Configurar LoRAs (Node 47 - Power Lora Loader) e mapear triggers oficiais
         test_loras = current_test.get("loras", [])
+        lora_triggers = []
+        for item in test_loras:
+            l_name = item.get("lora")
+            if l_name:
+                trig = find_lora_trigger(l_name)
+                if trig and trig not in lora_triggers:
+                    lora_triggers.append(trig)
+
         if "47" in base_prompt and "inputs" in base_prompt["47"]:
             n47_inputs = base_prompt["47"]["inputs"]
             for k in list(n47_inputs.keys()):
@@ -2644,6 +2729,12 @@ async def api_combo_tester_generate_set(request):
                     "strength": float(item.get("strength_model", 0.8)),
                     "strengthTwo": None
                 }
+
+        # Configurar Nó 89 (PromptReviewer) com modelo do nó 47 e triggers automáticos de teste
+        if "89" in base_prompt and "inputs" in base_prompt["89"]:
+            base_prompt["89"]["inputs"]["opt_model"] = ["47", 0]
+            if lora_triggers:
+                base_prompt["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers)
 
         # NOTA: Imagens não guardadas são preservadas acumulando por até 3 resorteios de LoRAs.
         # Imagens guardadas já foram movidas para tester_saved.
@@ -2663,6 +2754,12 @@ async def api_combo_tester_generate_set(request):
                     if n_info.get("class_type") == "ImpactWildcardProcessor":
                         n_inputs["mode"] = "populate"
                         n_inputs["populated_text"] = ""
+
+                # Garantir rigorosamente que o nó 89 (PromptReviewer) receba os triggers e modelo de LoRAs
+                if "89" in prompt_copy and "inputs" in prompt_copy["89"]:
+                    prompt_copy["89"]["inputs"]["opt_model"] = ["47", 0]
+                    if lora_triggers:
+                        prompt_copy["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers)
 
                 # Garantir rigorosamente que o nó 41 (ImpactWildcardEncode) receba o prompt positivo do PromptReviewer (Node 89)
                 if "41" in prompt_copy and "inputs" in prompt_copy["41"]:

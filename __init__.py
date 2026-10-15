@@ -775,6 +775,12 @@ class PromptReviewer:
             if 'bedroom_eyes' in ct.lower():
                 ct = re.sub(r'\bbedroom_eyes\b', 'heavy_lids, seductive_eyes', ct, flags=re.IGNORECASE)
                 logs.append('[Bedroom Cleansed] Substituído "bedroom_eyes" por "heavy_lids, seductive_eyes" para não forçar cenário de quarto.')
+            if 'glowing_edges' in ct.lower():
+                ct = re.sub(r'\bglowing_edges\b', 'subtle_rim_light', ct, flags=re.IGNORECASE)
+                logs.append('[Highlight Cleanse] Substituído "glowing_edges" por "subtle_rim_light" para evitar runas/cristais de neon excessivos.')
+            if 'colorful_fish_tail' in ct.lower():
+                ct = re.sub(r'\bcolorful_fish_tail\b', 'single_tail, mermaid_tail, single_fish_tail', ct, flags=re.IGNORECASE)
+                logs.append('[Tail Cleanse] Substituído "colorful_fish_tail" por cauda única para evitar peixes avulsos e duas caudas.')
             sanitized_raw.append(ct)
         raw_tags = sanitized_raw
 
@@ -1259,18 +1265,30 @@ class PromptReviewer:
                 logs.append(f'[Monster Anatomy Enforced] Removidas referencias a pernas humanas {purged_legs} para {c_name}.')
 
             # Para criaturas com cauda aquática ou serpentina (mermaid, lamia, scylla):
-            # remover posturas bípedes (standing, kneeling) que forçam o modelo a desenhar pernas bípedes
+            # remover posturas bípedes (standing, kneeling, upright) e penetrações humanas que forçam pernas bípedes
             if c_name in ['mermaid', 'lamia', 'scylla', 'scylla_girl']:
-                bipedal_poses = {'standing', 'kneeling', 'walking', 'running', 'tiptoe', 'runner_stance', 'weight_on_one_leg', 'one_leg_lifted', 'confident_stance', 'crawling_forward'}
+                bipedal_poses = {'standing', 'kneeling', 'walking', 'running', 'tiptoe', 'runner_stance', 'weight_on_one_leg', 'one_leg_lifted', 'confident_stance', 'crawling_forward', 'upright'}
                 bipedal_purged = [t for t in tags if any(bp == t.lower().strip() or f' {bp} ' in f' {t.lower()} ' for bp in bipedal_poses)]
                 if bipedal_purged:
                     tags = [t for t in tags if t not in bipedal_purged]
                     logs.append(f'[Tail Purity] Removidas posturas bípedes {bipedal_purged} para {c_name}.')
                 
+                # Purgar termos de penetração e sexo bípede que obrigam a IA a sintetizar pernas humanas abertas
+                penetration_conflicts = {
+                    'vaginal_penetration', 'penetration', 'insertion', 'deep_pounding', 'large_penis', 
+                    'belly_bulge', 'creampie', 'fingers_on_thighs', 'fingers_spreading_pussy', 
+                    'paired_legs_up_m-frame', 'spooning_sex', 'side_penetration'
+                }
+                purged_pen = [t for t in tags if any(pc in t.lower() for pc in penetration_conflicts)]
+                if purged_pen:
+                    tags = [t for t in tags if t not in purged_pen]
+                    tags.append('(tail_intertwined:1.3), (tail_embrace:1.3), (aquatic_mating:1.3), intimate_embrace, fondling_breasts')
+                    logs.append(f'[Tail Anatomy Protection] Substituída penetração bípede {purged_pen} por abraço/acasalamento sensual com cauda para não dividir a cauda em pernas humanas.')
+
                 if c_name == 'mermaid':
-                    if not any('resting_on_tail' in t.lower() or 'curved_tail' in t.lower() for t in tags):
-                        tags.append('(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.5)')
-                        logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica.')
+                    if not any('single_fish_tail' in t.lower() for t in tags):
+                        tags.append('(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.6), (mermaid_tail:1.5), (single_tail:1.6)')
+                        logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica (single_tail).')
 
             # Garantir tags positivas de reforço anatômico sem pernas humanas
             if not any('no_human_legs' in t.lower() for t in tags):
@@ -1327,6 +1345,35 @@ class PromptReviewer:
                     tags.append(el_injected)
                     logs.append(f'[Elemental Trait Enforced] Injetadas caracteristicas puras de {el_desc}.')
                     break
+
+        # 14.1 Medusa / Gorgon: Cabelo Canonico de Serpentes Vivas (Purga de Estilos e Cortes Humanos)
+        if 'gorgon_girl' in full_text_lower or 'medusa' in full_text_lower or 'living_snakes_hair' in full_text_lower:
+            human_hairstyles = {
+                'french_braid', 'twin_braids', 'braid', 'braids', 'single_braid', 'side_braid',
+                'ponytail', 'high_ponytail', 'side_ponytail', 'twin_ponytails', 'pigtails', 'twintails',
+                'twin_drills', 'drill_hair', 'bob_cut', 'pixie_cut', 'double_bun', 'space_buns',
+                'half_updo', 'half_up_half_down', 'hair_bun', 'chignon', 'topknot', 'bangs',
+                'parted_bangs', 'blunt_bangs', 'asymmetrical_hair', 'slicked_back', 'straight_hair',
+                'wavy_hair', 'curly_hair', 'loose_hair', 'short_hair', 'long_hair', 'very_long_hair'
+            }
+            human_hair_colors = {
+                'blonde_hair', 'brown_hair', 'black_hair', 'red_hair', 'silver_hair', 'white_hair',
+                'pink_hair', 'blue_hair', 'purple_hair', 'orange_hair', 'yellow_hair', 'grey_hair', 'gray_hair'
+            }
+            purged_medusa_hair = []
+            new_tags = []
+            for t in tags:
+                tl = t.lower().strip()
+                if any(hs == tl or f' {hs} ' in f' {tl} ' for hs in human_hairstyles) or any(hc == tl or f' {hc} ' in f' {tl} ' for hc in human_hair_colors):
+                    purged_medusa_hair.append(t)
+                else:
+                    new_tags.append(t)
+            tags = new_tags
+            if purged_medusa_hair:
+                logs.append(f'[Medusa Hair Enforced] Removidos estilos/cores de cabelo humano {purged_medusa_hair} para manter serpentes vivas na cabeca.')
+            if not any('living_snakes_for_hair' in t.lower() for t in tags):
+                tags.append('(living_snakes_for_hair:1.5), (writhing_snakes:1.4), (snake_heads_hair:1.5), (medusa_hair:1.4), serpentine_hair')
+                logs.append('[Medusa Hair Enforced] Injetado "living_snakes_for_hair, writhing_snakes, snake_heads_hair" oficial.')
 
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real (See-Through Body)
         ghost_signals = {'ghost_girl', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit'}
@@ -3065,6 +3112,8 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", camera, tripod, handheld_camera, camera_lens, candles, candle, candlestick, pear, pears, fruit"
                     if "floating_head" not in n37_val:
                         n37_val += ", ((floating_head, disembodied_head, extra_heads, second_head:1.4))"
+                    if "two_tails" not in n37_val:
+                        n37_val += ", ((two_tails, multiple_tails, split_tail, extra_tails, human_legs_on_mermaid:1.6)), ((braided_snakes, human_hair_on_medusa:1.4))"
                     if is_sfw:
                         n37_val += ", nsfw, nude, naked, nipples, pussy, breasts, bare_breasts, cleavage, suggestive, explicit"
                     all_prompt_texts = " ".join([

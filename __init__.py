@@ -817,19 +817,17 @@ class PromptReviewer:
                     tags = [t for t in tags if t not in dropped]
                     logs.append(f'[Pose Conflict] Priorizado SENTADA (sitting); removido: {dropped}')
 
-        # 3. Resolução de Conflitos Roupa vs Atividade / Nudez (Prevenção de panos soltos e roupas pela metade)
+        # 3. Resolução de Conflitos Roupa vs Atividade / Nudez
         if resolve_clothing:
             full_text_lower = ' '.join(tags).lower()
-            explicit_lower = {'pussy', 'bare_pussy', 'exposed_pussy', 'pussy_juices', 'fingering', 'masturbation', 
-                              'touching_herself', 'penetration', 'missionary', 'doggy_style', 'crotchless', 
-                              'vaginal', 'anal', 'spread_legs', 'legs_spread_in_m-shape', 'cunnilingus', 'dildo', 'insertion'}
-            is_lower_exposed = any(sig in full_text_lower for sig in explicit_lower)
+            
+            # Detecta se a personagem foi declarada explicitamente SEM calcinha ou completamente nua
+            has_no_panties = any(sig in full_text_lower for sig in {'bottomless', 'no_panties', 'completely_nude', 'completely_naked', 'naked', 'nude'})
             is_totally_naked = any(sig in full_text_lower for sig in {'completely_nude', 'completely_naked', 'naked', 'nude'})
-            is_bottomless = is_totally_naked or is_lower_exposed or any(sig in full_text_lower for sig in {'bottomless', 'no_panties', 'bare_ass', 'lifted_skirt, no_panties'})
             is_topless = is_totally_naked or any(sig in full_text_lower for sig in {'topless', 'bare_breasts', 'exposed_breasts'})
-            is_nsfw_scene = any(sig in full_text_lower for sig in ['nsfw', 'pussy', 'bare_breasts', 'masturbation', 'fingering', 'penetration', 'sex']) or is_bottomless or is_topless
+            is_nsfw_scene = any(sig in full_text_lower for sig in ['nsfw', 'pussy', 'bare_breasts', 'masturbation', 'fingering', 'penetration', 'sex']) or has_no_panties or is_topless
 
-            # Tags de manipulação/puxada de calcinha e roupas instáveis
+            # Tags de manipulação de calcinha que ficam inúteis se a personagem NÃO ESTIVER de calcinha
             panties_actions_aside = {
                 'panties_aside', 'pulling_panties_aside', 'pulling_panties_to_the_side', 
                 'bloomers_pulled_aside', 'underwear_aside'
@@ -839,7 +837,6 @@ class PromptReviewer:
                 'lowering_panties', 'taking_off_panties', 'removing_panties', 'adjusting_panties', 
                 'panties_down', 'panties_around_one_ankle', 'panties_around_ankles'
             }
-            all_panties_actions = panties_actions_aside | panties_actions_down
 
             other_bad_partials = {
                 'shorts_pulled_down', 'pulled_down_jeans', 'pulled_down_pants', 'unbuttoned_fly', 
@@ -855,32 +852,32 @@ class PromptReviewer:
                     logs.append(f'[Towel Conflict] Removida toalha "{t}" em cena NSFW para evitar pedacos de pano deslocados.')
                     continue
 
-                # Se personagem está sem calcinha / bottomless / nude, resolver qualquer ação de calcinha conflitante
-                if is_bottomless:
-                    # Substituir ações de puxar calcinha de lado por carícia/abertura de coxas
+                # SOMENTE quando a personagem está explicitamente sem calcinha (bottomless, no_panties, completely_nude):
+                # ações de manipular calcinha ficam inúteis e entram em conflito lógico com a ausência da peça
+                if has_no_panties:
                     if any(pa in tl for pa in panties_actions_aside):
                         cleaned_t = t
                         for pa in panties_actions_aside:
                             cleaned_t = re.sub(rf'\b{pa}\b', 'parting_own_thighs, teasing', cleaned_t, flags=re.IGNORECASE)
                         cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
-                        logs.append(f'[Panties Action Converted] Substituida acao de calcinha de lado "{t}" por "parting_own_thighs, teasing" pois personagem esta bottomless/nude.')
+                        logs.append(f'[Panties Action Converted] Substituida acao inútil "{t}" por "parting_own_thighs, teasing" pois a personagem esta sem calcinha.')
                         t = cleaned_t
                         tl = t.lower()
 
-                    # Substituir ações de abaixar calcinha por acariciar as coxas
                     if any(pd in tl for pd in panties_actions_down):
                         cleaned_t = t
                         for pd in panties_actions_down:
                             cleaned_t = re.sub(rf'\b{pd}\b', 'caressing_own_thighs, teasing', cleaned_t, flags=re.IGNORECASE)
                         cleaned_t = re.sub(r',\s*,', ',', cleaned_t).strip(' ,')
-                        logs.append(f'[Panties Action Converted] Substituida acao de abaixar calcinha "{t}" por "caressing_own_thighs, teasing" pois personagem esta bottomless/nude.')
+                        logs.append(f'[Panties Action Converted] Substituida acao inútil "{t}" por "caressing_own_thighs, teasing" pois a personagem esta sem calcinha.')
                         t = cleaned_t
                         tl = t.lower()
 
-                    # Se a tag for exclusivamente uma calcinha física e personagem é bottomless / no_panties / completely_nude
+                    # Se a tag for uma calcinha física e personagem é bottomless / no_panties / completely_nude:
+                    # remove a calcinha para manter consistência com a ausência declarada de roupa íntima
                     if any(p_kw in tl for p_kw in ['panties', 'underwear', 'bloomers']) and 'no_panties' not in tl:
                         if not any(keep in tl for keep in ['pulling', 'striptease', 'touching', 'caressing', 'parting']):
-                            logs.append(f'[Clothing Conflict] Removida calcinha "{t}" conflitante com bottomless/no_panties.')
+                            logs.append(f'[Clothing Conflict] Removida calcinha "{t}" conflitante com estado sem calcinha/bottomless.')
                             continue
 
                 # Se personagem está topless / sem sutiã, resolver ações de sutiã
@@ -913,39 +910,6 @@ class PromptReviewer:
                 if is_totally_naked:
                     if any(c in tl for c in ['jeans', 'pants', 'trousers', 'shorts', 'skirt', 'dress', 'shirt', 'sweater', 'hoodie', 'jacket', 't-shirt', 'tank_top', 'blouse', 'coat', 'pajamas', 'yukata', 'casual_clothes', 'towel', 'lingerie', 'underwear', 'panties', 'bra']):
                         logs.append(f'[Clothing Conflict] Removida roupa "{t}" por presenca de nudez total (completely_naked).')
-                        continue
-
-                # Atividade/Exposição genital ativa: NUNCA usar calcinha de lado (panties_aside), usar nudez limpa
-                if is_lower_exposed:
-                    if any(c in tl for c in ['blue_jeans', 'jeans', 'tight_pants', 'pants', 'trousers']):
-                        new_t = 'bottomless, bare_pussy, bare_hips'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (sem calcas amontoadas).')
-                        new_tags.append(new_t)
-                        continue
-                    elif any(c in tl for c in ['denim_shorts', 'shorts', 'tiny_pajama_shorts', 'sweatpants']):
-                        new_t = 'bottomless, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (removido short pela metade).')
-                        new_tags.append(new_t)
-                        continue
-                    elif any(c in tl for c in ['leggings', 'tights', 'pantyhose']):
-                        new_t = 'thighhighs, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (substituido por thighhighs sem rasgo).')
-                        new_tags.append(new_t)
-                        continue
-                    elif any(c in tl for c in ['pleated_skirt', 'miniskirt', 'skirt', 'summer_yukata']) and 'lift' not in tl:
-                        new_t = f'{t}, lifted_skirt, no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> saia levantada sem calcinha por baixo.')
-                        new_tags.append(new_t)
-                        continue
-                    elif any(c in tl for c in ['sundress', 'dress', 'slip_dress']) and 'lift' not in tl:
-                        new_t = f'{t}, lifted_dress, no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> vestido levantado sem calcinha por baixo.')
-                        new_tags.append(new_t)
-                        continue
-                    elif any(c in tl for c in ['panties', 'underwear', 'bloomers']):
-                        new_t = 'no_panties, bare_pussy'
-                        logs.append(f'[Clothing Adapted] Adaptado "{t}" -> "{new_t}" (removida calcinha parcial para evitar retalhos).')
-                        new_tags.append(new_t)
                         continue
 
                 new_tags.append(t)
@@ -1783,6 +1747,25 @@ def _save_saved_images_list(items):
     with open(SAVED_IMAGES_FILE, "w", encoding="utf-8") as f:
         json.dump(items, f, indent=2, ensure_ascii=False)
 
+TESTER_SAVED_META_FILE = COMFY_ROOT / "user" / "default" / "tester_saved_metadata.json"
+
+def _load_tester_saved_metadata():
+    if not TESTER_SAVED_META_FILE.exists():
+        return {}
+    try:
+        with open(TESTER_SAVED_META_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_tester_saved_metadata(data):
+    try:
+        TESTER_SAVED_META_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(TESTER_SAVED_META_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"[TesterSavedMeta] Erro ao salvar metadados: {e}")
+
 TESTER_ROUNDS_TRACKER_FILE = COMFY_ROOT / "user" / "default" / "tester_rounds_tracker.json"
 
 def _load_rounds_tracker():
@@ -2128,6 +2111,7 @@ def _extract_tester_image_meta(img_path):
     seed_val = ""
     loras = []
     checkpoint = ""
+    combo_name = ""
     try:
         from PIL import Image
         with Image.open(img_path) as im:
@@ -2142,36 +2126,67 @@ def _extract_tester_image_meta(img_path):
                         break
 
                 # 2. Obter prompt populado final
-                # Priorizar nós que processam wildcards ou sanitização
-                for target_nid in ["11", "13", "18", "20", "10", "12"]:
+                for target_nid in ["89", "41", "99", "11", "13", "18", "20", "10", "12"]:
                     if target_nid in p_data:
-                        pop = p_data[target_nid].get("inputs", {}).get("populated_text")
-                        if pop and pop.strip():
+                        n_inp = p_data[target_nid].get("inputs", {})
+                        pop = n_inp.get("populated_text") or n_inp.get("prompt")
+                        if isinstance(pop, str) and pop.strip():
                             prompt_str = pop.strip()
                             break
                 if not prompt_str:
                     for nid, nval in p_data.items():
                         pop = nval.get("inputs", {}).get("populated_text")
-                        if pop and pop.strip():
+                        if isinstance(pop, str) and pop.strip():
                             prompt_str = pop.strip()
                             break
 
-                # 3. Extrair LoRAs e Checkpoint ativos
+                # 3. Extrair Checkpoint
                 for nid, nval in p_data.items():
                     c_type = nval.get("class_type", "")
                     inputs = nval.get("inputs", {})
-                    if "lora" in c_type.lower():
-                        l_name = inputs.get("lora_name") or inputs.get("lora") or inputs.get("name")
-                        if l_name:
-                            loras.append({
-                                "lora": pathlib.Path(str(l_name)).stem,
-                                "strength_model": float(inputs.get("strength_model", inputs.get("strength", 0.8)))
-                            })
-                    elif "checkpoint" in c_type.lower() and "ckpt_name" in inputs:
+                    if "checkpoint" in c_type.lower() and "ckpt_name" in inputs:
                         checkpoint = pathlib.Path(str(inputs["ckpt_name"])).stem
+                        break
+
+                # 4. Extrair LoRAs ativos (Suporte a Power Lora Loader rgthree e loaders convencionais)
+                seen_loras = set()
+                for nid, nval in p_data.items():
+                    c_type = nval.get("class_type", "")
+                    inputs = nval.get("inputs", {})
+                    if "power lora loader" in c_type.lower() or "powerloraloader" in c_type.lower():
+                        for k, v in inputs.items():
+                            if k.lower().startswith("lora_") and isinstance(v, dict) and v.get("on"):
+                                l_val = v.get("lora")
+                                if l_val:
+                                    clean_stem = pathlib.Path(str(l_val)).stem
+                                    if clean_stem not in seen_loras:
+                                        seen_loras.add(clean_stem)
+                                        loras.append({
+                                            "lora": clean_stem,
+                                            "strength_model": round(float(v.get("strength", 0.8)), 2)
+                                        })
+                    elif "lora" in c_type.lower():
+                        l_name = inputs.get("lora_name") or inputs.get("lora") or inputs.get("name")
+                        if l_name and isinstance(l_name, str):
+                            clean_stem = pathlib.Path(str(l_name)).stem
+                            if clean_stem not in seen_loras:
+                                seen_loras.add(clean_stem)
+                                loras.append({
+                                    "lora": clean_stem,
+                                    "strength_model": round(float(inputs.get("strength_model", inputs.get("strength", 0.8))), 2)
+                                })
+
+                # 5. Montar combo_name resumo
+                if loras:
+                    loras_part = " + ".join([f"{l['lora'].split('(')[0].strip()} ({l['strength_model']})" for l in loras[:3]])
+                    if len(loras) > 3:
+                        loras_part += f" +{len(loras)-3}"
+                    combo_name = f"{checkpoint} | {loras_part}" if checkpoint else loras_part
+                elif checkpoint:
+                    combo_name = checkpoint
     except Exception as e:
         print(f"[ComboTester] Erro ao ler metadados de {img_path.name}: {e}")
-    return prompt_str, seed_val, loras, checkpoint
+    return prompt_str, seed_val, loras, checkpoint, combo_name
 
 @server.PromptServer.instance.routes.get("/tester_saved_images/{filename}")
 async def get_tester_saved_image(request):
@@ -2192,16 +2207,43 @@ async def api_combo_tester_status(request):
         current_test = _load_current_test_data()
         approved_data = _load_approved_combos_data()
         
-        # 1. Coletar imagens salvas / guardadas (da pasta tester_saved)
+        # 1. Coletar imagens salvas / guardadas (da pasta tester_saved) com persistência de metadados
         saved_gallery = []
         real_saved_filenames = []
+        saved_metadata = _load_tester_saved_metadata()
+        meta_updated = False
+
         if TESTER_SAVED_DIR.exists():
             valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
             s_imgs = sorted([f for f in TESTER_SAVED_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                             key=lambda f: f.stat().st_mtime, reverse=True)
             for img in s_imgs:
-                p_text, s_val, l_list, ckpt = _extract_tester_image_meta(img)
                 real_saved_filenames.append(img.name)
+                item_meta = saved_metadata.get(img.name, {})
+                l_list = item_meta.get("loras", [])
+                ckpt = item_meta.get("checkpoint", "")
+                c_name = item_meta.get("combo_name", "")
+                p_text = item_meta.get("prompt", "")
+                s_val = item_meta.get("seed", "")
+
+                # Se faltam metadados, extrai do PNG e persiste
+                if not l_list or not ckpt or not c_name:
+                    p_ext, s_ext, l_ext, ckpt_ext, c_ext = _extract_tester_image_meta(img)
+                    p_text = p_text or p_ext
+                    s_val = s_val or s_ext
+                    l_list = l_list or l_ext
+                    ckpt = ckpt or ckpt_ext
+                    c_name = c_name or c_ext
+                    saved_metadata[img.name] = {
+                        "checkpoint": ckpt,
+                        "loras": l_list,
+                        "combo_name": c_name,
+                        "prompt": p_text,
+                        "seed": s_val,
+                        "timestamp": img.stat().st_mtime
+                    }
+                    meta_updated = True
+
                 saved_gallery.append({
                     "filename": img.name,
                     "url": f"/tester_saved_images/{img.name}",
@@ -2211,9 +2253,13 @@ async def api_combo_tester_status(request):
                     "seed": s_val,
                     "loras": l_list,
                     "checkpoint": ckpt,
+                    "combo_name": c_name,
                     "is_saved": True
                 })
         
+        if meta_updated:
+            _save_tester_saved_metadata(saved_metadata)
+
         # Atualiza o arquivo saved_tester_images.json para refletir com exatidão a pasta
         _save_saved_images_list(real_saved_filenames)
         saved_imgs_set = set(real_saved_filenames)
@@ -2226,13 +2272,12 @@ async def api_combo_tester_status(request):
             imgs = sorted([f for f in TESTER_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                           key=lambda f: f.stat().st_mtime, reverse=True)
             for img in imgs[:48]:
-                # Ignorar arquivos incompletos que ainda estão sendo gravados pelo ComfyUI (< 25KB)
                 try:
                     if img.stat().st_size < 25000:
                         continue
                 except Exception:
                     continue
-                p_text, s_val, l_list, ckpt = _extract_tester_image_meta(img)
+                p_text, s_val, l_list, ckpt, c_name = _extract_tester_image_meta(img)
                 age = rounds_tracker.get(img.name, 0)
                 tester_images.append({
                     "filename": img.name,
@@ -2243,6 +2288,7 @@ async def api_combo_tester_status(request):
                     "seed": s_val,
                     "loras": l_list,
                     "checkpoint": ckpt,
+                    "combo_name": c_name,
                     "is_saved": False,
                     "rounds_age": age
                 })
@@ -2481,6 +2527,30 @@ async def api_combo_tester_save_image(request):
         if dest.name not in saved_list:
             saved_list.append(dest.name)
             _save_saved_images_list(saved_list)
+
+        # Salvar metadados da combinação guardada
+        try:
+            saved_meta = _load_tester_saved_metadata()
+            curr_test = _load_current_test_data()
+            p_text, s_val, l_list, ckpt, c_name = _extract_tester_image_meta(dest)
+            if not l_list and curr_test and curr_test.get("loras"):
+                l_list = curr_test.get("loras", [])
+            if not ckpt and curr_test and curr_test.get("checkpoint"):
+                ckpt = pathlib.Path(str(curr_test.get("checkpoint"))).stem
+            if not c_name and curr_test and curr_test.get("test_id"):
+                c_name = curr_test.get("test_id")
+            
+            saved_meta[dest.name] = {
+                "checkpoint": ckpt,
+                "loras": l_list,
+                "combo_name": c_name,
+                "prompt": p_text,
+                "seed": s_val,
+                "timestamp": time.time()
+            }
+            _save_tester_saved_metadata(saved_meta)
+        except Exception as meta_err:
+            print(f"[ComboTester] Aviso ao salvar metadados da imagem guardada: {meta_err}")
             
         # Remove do tracker de idades para não sofrer remoção após resorteios
         tracker = _load_rounds_tracker()

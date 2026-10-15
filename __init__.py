@@ -2105,6 +2105,152 @@ async def get_tester_image(request):
     except Exception as e:
         return web.Response(status=500, text=str(e))
 
+def _friendly_lora_name(lora_str: str) -> str:
+    """Retorna um nome amigável e legível para um LoRA, eliminando hashes criptográficos e extraindo o nome real."""
+    if not lora_str:
+        return ""
+    import re
+    raw = lora_str.replace('\\', '/').split('/')[-1].replace('.safetensors', '').strip()
+    
+    # 1. Se tem parênteses com nome amigável: ex: 0NZ9KMEEMSGGXKV1KM7G1SVNE0(FANTASYFORGE)
+    m = re.search(r'^(.*?)\(([^)]+)\)$', raw)
+    if m:
+        prefix, inside = m.group(1).strip(), m.group(2).strip()
+        # Se o prefixo for um hash longo de Civitai (com mais de 12 caracteres ou com códigos conhecidos)
+        if len(prefix) > 12 and (not '_' in prefix or any(k in prefix.lower() for k in ['0nz9', 'd5jr', 'ck-'])):
+            return inside.replace('_', ' ').title()
+        # Se o inside for mais curto ou representativo
+        return inside.replace('_', ' ').title() if len(inside) <= len(prefix) else f"{prefix} ({inside})"
+
+    # 2. Se o nome estiver em LORA_TRIGGER_REGISTRY
+    clean_k = raw.lower()
+    if clean_k in LORA_TRIGGER_REGISTRY:
+        trig = LORA_TRIGGER_REGISTRY[clean_k].split(',')[0].strip()
+        if len(raw) > 14 and not '_' in raw:
+            return trig.replace('_', ' ').title()
+
+    # 3. Formatação padrão: troca underlines por espaços e remove sufixos técnicos
+    clean = re.sub(r'[-_]0000\d+', '', raw)
+    clean = clean.replace('_', ' ').strip()
+    return clean
+
+def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
+    """Verifica se o conjunto de LoRAs e checkpoint corresponde a um combo aprovado e retorna seu nome oficial."""
+    try:
+        approved_data = _load_approved_combos_data()
+        approved_list = approved_data.get("approved_combos", [])
+        if not approved_list or not loras_list:
+            return ""
+
+        img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}
+
+        for combo in approved_list:
+            c_loras = combo.get("loras", [])
+            c_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in c_loras}
+            
+            # Igualdade exata de conjuntos de LoRAs
+            if img_lora_stems == c_stems:
+                return combo.get("name") or combo.get("id")
+            
+            # Alta similaridade (se 75% dos LoRAs coincidirem e tiver >= 2 LoRAs)
+            intersection = img_lora_stems.intersection(c_stems)
+            if len(intersection) >= max(len(img_lora_stems), len(c_stems)) * 0.75 and len(intersection) >= 2:
+                return combo.get("name") or combo.get("id")
+    except Exception as e:
+        print(f"[ComboMatcher] Erro ao buscar nome de combo aprovado: {e}")
+    return ""
+
+def _resolve_prompt_from_graph(p_data: dict) -> str:
+    """Navega pelo grafo ComfyUI para extrair o prompt positivo gerado e populado."""
+    def _trace(nid, visited=None):
+        if visited is None:
+            visited = set()
+        if nid in visited:
+            return ""
+        visited.add(nid)
+        node = p_data.get(str(nid), {})
+        c_type = node.get("class_type", "")
+        inputs = node.get("inputs", {})
+
+        # 1. Se for ImpactWildcardProcessor ou tiver populated_text já resolvido
+        pop = inputs.get("populated_text")
+        if isinstance(pop, str) and pop.strip():
+            return pop.strip()
+
+        # 2. String ou texto primitivo
+        val = inputs.get("value") or inputs.get("text") or inputs.get("string")
+        if isinstance(val, str) and val.strip() and not any(k in str(nid) for k in ["negative", "37"]):
+            return val.strip()
+
+        # 3. StringConcatenate
+        if "concatenate" in c_type.lower():
+            parts = []
+            for key in ["string_a", "string_b", "string_c", "string_d"]:
+                if key in inputs:
+                    ref = inputs[key]
+                    if isinstance(ref, list) and len(ref) == 2:
+                        res = _trace(ref[0], visited.copy())
+                        if res:
+                            parts.append(res)
+                    elif isinstance(ref, str) and ref.strip():
+                        parts.append(ref.strip())
+            delim = inputs.get("delimiter", ", ")
+            return delim.join(parts)
+
+        # 4. easy ifElse
+        if "ifelse" in c_type.lower():
+            bool_ref = inputs.get("boolean")
+            bool_val = None
+            if isinstance(bool_ref, list) and len(bool_ref) == 2:
+                bool_node = p_data.get(str(bool_ref[0]), {})
+                bool_val = bool_node.get("inputs", {}).get("value")
+            target_branch = "on_true" if bool_val else "on_false"
+            if target_branch in inputs:
+                ref = inputs[target_branch]
+                if isinstance(ref, list) and len(ref) == 2:
+                    return _trace(ref[0], visited.copy())
+
+        # 5. PromptReviewer
+        if "promptreviewer" in c_type.lower():
+            p_ref = inputs.get("prompt")
+            if isinstance(p_ref, list) and len(p_ref) == 2:
+                base_txt = _trace(p_ref[0], visited.copy())
+                opt_trigs = inputs.get("opt_lora_triggers", "")
+                if opt_trigs and opt_trigs not in base_txt:
+                    base_txt = f"{base_txt}, {opt_trigs}"
+                return base_txt
+            elif isinstance(p_ref, str):
+                return p_ref
+
+        # 6. ImpactWildcardEncode
+        if "impactwildcardencode" in c_type.lower():
+            pop_ref = inputs.get("populated_text")
+            if isinstance(pop_ref, list) and len(pop_ref) == 2:
+                return _trace(pop_ref[0], visited.copy())
+            elif isinstance(pop_ref, str) and pop_ref.strip():
+                return pop_ref.strip()
+
+        return ""
+
+    # Inicia a busca a partir dos nós principais do pipeline
+    for root_id in ["41", "89", "99"]:
+        if root_id in p_data:
+            txt = _trace(root_id)
+            if txt and len(txt) > 20:
+                return txt
+
+    # Fallback: maior texto populado entre os processadores de wildcard
+    candidates = []
+    for nid, nval in p_data.items():
+        pop = nval.get("inputs", {}).get("populated_text")
+        if isinstance(pop, str) and pop.strip() and len(pop) > 30:
+            candidates.append(pop.strip())
+    if candidates:
+        candidates.sort(key=len, reverse=True)
+        return candidates[0]
+
+    return ""
+
 def _extract_tester_image_meta(img_path):
     """Extrai o prompt positivo resolvido, seed, loras e checkpoint do arquivo PNG gerado pelo ComfyUI."""
     prompt_str = ""
@@ -2125,20 +2271,8 @@ def _extract_tester_image_meta(img_path):
                         seed_val = str(inputs.get("seed", ""))
                         break
 
-                # 2. Obter prompt populado final
-                for target_nid in ["89", "41", "99", "11", "13", "18", "20", "10", "12"]:
-                    if target_nid in p_data:
-                        n_inp = p_data[target_nid].get("inputs", {})
-                        pop = n_inp.get("populated_text") or n_inp.get("prompt")
-                        if isinstance(pop, str) and pop.strip():
-                            prompt_str = pop.strip()
-                            break
-                if not prompt_str:
-                    for nid, nval in p_data.items():
-                        pop = nval.get("inputs", {}).get("populated_text")
-                        if isinstance(pop, str) and pop.strip():
-                            prompt_str = pop.strip()
-                            break
+                # 2. Obter prompt populado final resolvido pelo grafo
+                prompt_str = _resolve_prompt_from_graph(p_data)
 
                 # 3. Extrair Checkpoint
                 for nid, nval in p_data.items():
@@ -2148,7 +2282,7 @@ def _extract_tester_image_meta(img_path):
                         checkpoint = pathlib.Path(str(inputs["ckpt_name"])).stem
                         break
 
-                # 4. Extrair LoRAs ativos (Suporte a Power Lora Loader rgthree e loaders convencionais)
+                # 4. Extrair LoRAs ativos com nomes amigáveis
                 seen_loras = set()
                 for nid, nval in p_data.items():
                     c_type = nval.get("class_type", "")
@@ -2161,8 +2295,10 @@ def _extract_tester_image_meta(img_path):
                                     clean_stem = pathlib.Path(str(l_val)).stem
                                     if clean_stem not in seen_loras:
                                         seen_loras.add(clean_stem)
+                                        f_name = _friendly_lora_name(clean_stem)
                                         loras.append({
                                             "lora": clean_stem,
+                                            "friendly_name": f_name,
                                             "strength_model": round(float(v.get("strength", 0.8)), 2)
                                         })
                     elif "lora" in c_type.lower():
@@ -2171,14 +2307,21 @@ def _extract_tester_image_meta(img_path):
                             clean_stem = pathlib.Path(str(l_name)).stem
                             if clean_stem not in seen_loras:
                                 seen_loras.add(clean_stem)
+                                f_name = _friendly_lora_name(clean_stem)
                                 loras.append({
                                     "lora": clean_stem,
+                                    "friendly_name": f_name,
                                     "strength_model": round(float(inputs.get("strength_model", inputs.get("strength", 0.8))), 2)
                                 })
 
-                # 5. Montar combo_name resumo
-                if loras:
-                    loras_part = " + ".join([f"{l['lora'].split('(')[0].strip()} ({l['strength_model']})" for l in loras[:3]])
+                # 5. Identificar nome do conjunto / combo
+                # (A) Primeiro verifica se bate com algum combo aprovado nomeado pelo usuário
+                approved_combo_name = _match_approved_combo_name(checkpoint, loras)
+                if approved_combo_name:
+                    combo_name = approved_combo_name
+                elif loras:
+                    # (B) Resumo legível com nomes amigáveis
+                    loras_part = " + ".join([f"{l.get('friendly_name', l['lora'])} ({l['strength_model']})" for l in loras[:3]])
                     if len(loras) > 3:
                         loras_part += f" +{len(loras)-3}"
                     combo_name = f"{checkpoint} | {loras_part}" if checkpoint else loras_part
@@ -2226,8 +2369,8 @@ async def api_combo_tester_status(request):
                 p_text = item_meta.get("prompt", "")
                 s_val = item_meta.get("seed", "")
 
-                # Se faltam metadados, extrai do PNG e persiste
-                if not l_list or not ckpt or not c_name:
+                # Se faltam metadados ou prompt, extrai do PNG e persiste
+                if not l_list or not ckpt or not c_name or not p_text:
                     p_ext, s_ext, l_ext, ckpt_ext, c_ext = _extract_tester_image_meta(img)
                     p_text = p_text or p_ext
                     s_val = s_val or s_ext
@@ -2242,6 +2385,20 @@ async def api_combo_tester_status(request):
                         "seed": s_val,
                         "timestamp": img.stat().st_mtime
                     }
+                    meta_updated = True
+
+                # Enriquece LoRAs com friendly_name se faltar
+                for l_item in l_list:
+                    if isinstance(l_item, dict) and not l_item.get("friendly_name"):
+                        l_item["friendly_name"] = _friendly_lora_name(l_item.get("lora", ""))
+                        meta_updated = True
+
+                # Atualiza com nome de combo aprovado se houver correspondência com preset aprovado
+                approved_match = _match_approved_combo_name(ckpt, l_list)
+                if approved_match and approved_match != c_name:
+                    c_name = approved_match
+                    if img.name in saved_metadata:
+                        saved_metadata[img.name]["combo_name"] = c_name
                     meta_updated = True
 
                 saved_gallery.append({

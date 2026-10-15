@@ -2645,7 +2645,7 @@ async def api_combo_tester_save_image(request):
         if not filename:
             return web.json_response({"error": "Filename não fornecido"}, status=400)
             
-        # Busca flexível no diretório tester e outros diretórios de saída
+        # Busca no diretório tester primeiro (origem padrão ao guardar)
         src = None
         candidates = [
             TESTER_OUTPUT_DIR / filename,
@@ -2662,7 +2662,6 @@ async def api_combo_tester_save_image(request):
                 break
 
         if src is None:
-            # Busca recursiva rápida na pasta de output
             found = list(TESTER_OUTPUT_DIR.parent.glob(f"**/{filename}"))
             if found:
                 src = found[0]
@@ -2674,7 +2673,7 @@ async def api_combo_tester_save_image(request):
         import shutil, time
         dest = TESTER_SAVED_DIR / filename
         
-        # Mover fisicamente para a pasta tester_saved se ainda não estiver lá
+        # Mover fisicamente para a pasta tester_saved evitando qualquer colisão
         if src.resolve() != dest.resolve():
             if dest.exists():
                 dest = TESTER_SAVED_DIR / f"{src.stem}_{int(time.time())}{src.suffix}"
@@ -2715,7 +2714,7 @@ async def api_combo_tester_save_image(request):
             del tracker[filename]
             _save_rounds_tracker(tracker)
             
-        return web.json_response({"success": True, "saved": True, "moved": True, "message": f"Imagem {filename} guardada e movida para a Galeria Guardadas!"})
+        return web.json_response({"success": True, "saved": True, "saved_filename": dest.name, "message": f"Imagem guardada com sucesso!"})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -2736,15 +2735,17 @@ async def api_combo_tester_unsave_image(request):
         dest = TESTER_SAVED_DIR / filename
         if dest.exists() and dest.is_file():
             TESTER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            import shutil
+            import shutil, time
             target_restore = TESTER_OUTPUT_DIR / filename
+            if target_restore.exists():
+                target_restore = TESTER_OUTPUT_DIR / f"{dest.stem}_restored_{int(time.time())}{dest.suffix}"
             shutil.move(str(dest), str(target_restore))
             # Reseta idade para 0 no testador
             tracker = _load_rounds_tracker()
-            tracker[filename] = 0
+            tracker[target_restore.name] = 0
             _save_rounds_tracker(tracker)
 
-        return web.json_response({"success": True, "saved": False, "message": f"Imagem {filename} devolvida para a galeria do testador."})
+        return web.json_response({"success": True, "saved": False, "message": f"Imagem devolvida para a galeria do testador."})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

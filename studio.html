@@ -1900,6 +1900,10 @@
       const target = document.getElementById(tabId);
       if (target) target.classList.add('active');
       state.activeTab = tabId;
+      try {
+        localStorage.setItem('studio_active_tab', tabId);
+        history.replaceState(null, '', '#' + tabId);
+      } catch (e) {}
 
       if (tabId === 'tab-tester') carregarStatusTester();
       if (tabId === 'tab-saved') carregarStatusTester();
@@ -2278,16 +2282,22 @@
         renderTesterActiveCombo(data.current_test);
         renderTesterImages(data.images || []);
 
-        // Verifica hash da URL ou parâmetro para abrir diretamente a aba solicitada
-        const hash = (window.location.hash || '').replace('#', '');
-        if (hash && document.getElementById(hash)) {
-          switchTab(hash);
-        } else {
+        // Verifica hash da URL, localStorage ou parâmetro para abrir diretamente a aba salva
+        let initialTab = (window.location.hash || '').replace('#', '');
+        if (!initialTab || !document.getElementById(initialTab)) {
+          try {
+            initialTab = localStorage.getItem('studio_active_tab');
+          } catch (e) {}
+        }
+        if (!initialTab || !document.getElementById(initialTab)) {
           const urlParams = new URLSearchParams(window.location.search);
           const tabParam = urlParams.get('tab');
           if (tabParam && document.getElementById('tab-' + tabParam)) {
-            switchTab('tab-' + tabParam);
+            initialTab = 'tab-' + tabParam;
           }
+        }
+        if (initialTab && document.getElementById(initialTab)) {
+          switchTab(initialTab);
         }
         await carregarPresetsPixelArtDoBackend();
         popularDropdownItensPixel('armas');
@@ -2477,12 +2487,16 @@
     }
 
     function abrirModalZoomItem(filename, isSaved = false) {
-      const allList = [...(state.savedGallery || []), ...(state.images || [])];
-      const img = allList.find(x => x.filename === filename);
-      if (img) {
-        abrirModalZoom(img.url, img.filename, img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '');
+      let img = null;
+      if (isSaved) {
+        img = (state.savedGallery || []).find(x => x.filename === filename) || (state.images || []).find(x => x.filename === filename);
       } else {
-        abrirModalZoom(isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`, filename);
+        img = (state.images || []).find(x => x.filename === filename) || (state.savedGallery || []).find(x => x.filename === filename);
+      }
+      if (img) {
+        abrirModalZoom(img.url, img.filename, img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '', isSaved);
+      } else {
+        abrirModalZoom(isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`, filename, '', '', '', [], '', isSaved);
       }
     }
 
@@ -2510,7 +2524,7 @@
             <div class="image-card-title" title="${img.filename}">${img.filename}</div>
             ${img.combo_name ? `<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0;" title="Combinação: ${img.combo_name}">🎯 ${img.combo_name}</div>` : ''}
             <div class="image-card-actions">
-              <button class="btn-star" data-filename="${img.filename}" onclick="toggleSaveImage('${img.filename}', this)">
+              <button class="btn-star" data-filename="${img.filename}" onclick="guardarImagemTester('${img.filename}', this)">
                 ⭐ Guardar
               </button>
               <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨</button>
@@ -2555,7 +2569,7 @@
             <div class="image-card-actions" style="gap: 5px;">
               <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨ Refinar</button>
               <button class="btn-action-icon" title="Enviar para Cartoonização" onclick="enviarParaCartoonUrl('${img.url}', '${img.filename}')">🎨 Cartoon</button>
-              <button class="btn-action-icon" title="Devolver para Galeria de Testes" onclick="toggleSaveImage('${img.filename}', this)" style="color: #cbd5e1;">↩️ Devolver</button>
+              <button class="btn-action-icon" title="Devolver para Galeria de Testes" onclick="devolverImagemTester('${img.filename}', this)" style="color: #cbd5e1;">↩️ Devolver</button>
               <button class="btn-action-icon" title="Excluir Permanentemente" onclick="deleteSavedImage('${img.filename}')" style="color: #f87171;">🗑️</button>
             </div>
           </div>
@@ -2964,33 +2978,66 @@
       }
     }
 
-    async function toggleSaveImage(filename, btnEl) {
+    async function guardarImagemTester(filename, btnEl) {
       if (!filename) return;
-      const currentlySaved = isImageSaved(filename);
-      const endpoint = currentlySaved ? '/api/combo_tester/unsave_image' : '/api/combo_tester/save_image';
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerText = '⏳ Guardando...';
+      }
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetch('/api/combo_tester/save_image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename })
         });
         const data = await res.json();
         if (data.success) {
-          if (data.saved) {
-            if (!state.savedImages.includes(filename)) state.savedImages.push(filename);
-            showToast('⭐ Imagem guardada e movida para a aba Guardadas!', 'success');
-          } else {
-            state.savedImages = state.savedImages.filter(f => f !== filename);
-            showToast('↩️ Imagem devolvida para a galeria do testador.', 'info');
-          }
-          updateSaveButtonsUI(filename, data.saved);
+          showToast('⭐ Imagem guardada e transferida para a aba Guardadas!', 'success');
           await carregarStatusTester();
         } else {
-          showToast(data.error || 'Erro ao atualizar imagem', 'error');
+          showToast(data.error || 'Erro ao guardar imagem', 'error');
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerText = '⭐ Guardar';
+          }
         }
       } catch (e) {
         showToast('Erro de conexão ao guardar imagem', 'error');
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerText = '⭐ Guardar';
+        }
       }
+    }
+
+    async function devolverImagemTester(filename, btnEl) {
+      if (!filename) return;
+      if (btnEl) btnEl.disabled = true;
+      try {
+        const res = await fetch('/api/combo_tester/unsave_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('↩️ Imagem devolvida para a galeria do testador.', 'info');
+          await carregarStatusTester();
+        } else {
+          showToast(data.error || 'Erro ao devolver imagem', 'error');
+          if (btnEl) btnEl.disabled = false;
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao devolver imagem', 'error');
+        if (btnEl) btnEl.disabled = false;
+      }
+    }
+
+    async function toggleSaveImage(filename, btnEl) {
+      if (btnEl && (btnEl.innerText.includes('Devolver') || btnEl.title.includes('Devolver'))) {
+        return devolverImagemTester(filename, btnEl);
+      }
+      return guardarImagemTester(filename, btnEl);
     }
 
     function enviarParaCartoonUrl(url, filename) {
@@ -4206,22 +4253,24 @@
     // =========================================================================
     // MODAL DE ZOOM
     // =========================================================================
-    function abrirModalZoom(url, filename, prompt = '', seed = '', checkpoint = '', loras = [], combo_name = '') {
-      state.modalImage = { url, filename, prompt, seed, checkpoint, loras, combo_name };
+    function abrirModalZoom(url, filename, prompt = '', seed = '', checkpoint = '', loras = [], combo_name = '', isSaved = false) {
+      state.modalImage = { url, filename, prompt, seed, checkpoint, loras, combo_name, isSaved };
       document.getElementById('modal-zoom-img').src = url;
       document.getElementById('modal-zoom-title').innerText = filename;
       document.getElementById('btn-modal-download').href = url;
 
-      // Sincroniza o botão de salvar do modal com o estado real da imagem
+      // Sincroniza o botão de salvar do modal de acordo com a galeria de origem
       const modalBtn = document.getElementById('btn-modal-save');
       if (modalBtn) {
         modalBtn.setAttribute('data-filename', filename);
-        if (isImageSaved(filename)) {
+        if (isSaved) {
           modalBtn.classList.add('active');
           modalBtn.innerText = '⭐ Guardado';
+          modalBtn.title = 'Esta imagem já está guardada na aba Guardadas';
         } else {
           modalBtn.classList.remove('active');
           modalBtn.innerText = '⭐ Guardar';
+          modalBtn.title = 'Guardar esta imagem e transferir para a aba Guardadas';
         }
       }
 
@@ -4256,9 +4305,25 @@
       document.getElementById('modal-zoom').classList.remove('open');
     }
 
-    function salvarImagemModal() {
+    async function salvarImagemModal() {
       if (!state.modalImage) return;
-      toggleSaveImage(state.modalImage.filename, document.getElementById('btn-modal-save'));
+      if (state.modalImage.isSaved) {
+        showToast('Esta imagem já está na aba Guardadas!', 'info');
+        return;
+      }
+      const modalBtn = document.getElementById('btn-modal-save');
+      if (modalBtn) {
+        modalBtn.disabled = true;
+        modalBtn.innerText = '⏳ Guardando...';
+      }
+      await guardarImagemTester(state.modalImage.filename);
+      state.modalImage.isSaved = true;
+      if (modalBtn) {
+        modalBtn.disabled = false;
+        modalBtn.classList.add('active');
+        modalBtn.innerText = '⭐ Guardado';
+        modalBtn.title = 'Esta imagem já está guardada na aba Guardadas';
+      }
     }
 
     function enviarImagemModalParaRefinamento() {

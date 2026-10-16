@@ -1467,6 +1467,13 @@ class PromptReviewer:
 
         reviewed_prompt = ', '.join(tags)
         log_summary = '\n'.join(logs) if logs else '[OK] Nenhum conflito detectado no prompt.'
+        try:
+            import gc, torch
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
         return (reviewed_prompt, log_summary)
 
 

@@ -25,9 +25,10 @@ STUDIO_REFINED_DIR = BASE_OUTPUT_DIR / "studio" / "refined"
 STUDIO_CARTOON_DIR = BASE_OUTPUT_DIR / "studio" / "cartoon"
 STUDIO_FACESWAP_DIR = BASE_OUTPUT_DIR / "studio" / "faceswap"
 STUDIO_PIXELART_DIR = BASE_OUTPUT_DIR / "studio" / "pixelart"
+STUDIO_INPAINT_DIR = BASE_OUTPUT_DIR / "studio" / "inpaint"
 BRAND_AVATAR_PATH = BASE_OUTPUT_DIR / "brand_avatar.png"
 
-for d in [STUDIO_UPLOAD_DIR, STUDIO_REFINED_DIR, STUDIO_CARTOON_DIR, STUDIO_FACESWAP_DIR, STUDIO_PIXELART_DIR]:
+for d in [STUDIO_UPLOAD_DIR, STUDIO_REFINED_DIR, STUDIO_CARTOON_DIR, STUDIO_FACESWAP_DIR, STUDIO_PIXELART_DIR, STUDIO_INPAINT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 
@@ -50,6 +51,7 @@ def find_image_anywhere(filename):
         STUDIO_CARTOON_DIR / basename,
         STUDIO_FACESWAP_DIR / basename,
         STUDIO_PIXELART_DIR / basename,
+        STUDIO_INPAINT_DIR / basename,
     ]
     for c in candidates:
         if c.exists() and c.is_file():
@@ -977,6 +979,138 @@ def build_pixelart_workflow(prompt_pos, prompt_neg, ckpt_name, resolution=1024,
     return nodes
 
 
+def build_inpaint_workflow(image_rel_path, mask_rel_path, ckpt_name, loras, prompt_pos, prompt_neg,
+                           denoise=0.55, grow_mask_by=6, steps=28, cfg=5.5, sampler_name="euler", scheduler="karras", seed=None):
+    """
+    Constrói grafo modular para Refinamento Manual Fino (Inpainting / Selective Resampling).
+    Permite resampar apenas a região demarcada pela máscara com controle de denoise e linguagem natural/tags.
+    """
+    if seed is None:
+        seed = random.randint(1, 999999999999999)
+    nodes = {}
+    
+    # 1. Carregar imagem base
+    nodes["1"] = {
+        "class_type": "LoadImage",
+        "inputs": {"image": image_rel_path}
+    }
+    # 2. Carregar máscara (LoadImage exporta MASK no output index 1)
+    nodes["2"] = {
+        "class_type": "LoadImage",
+        "inputs": {"image": mask_rel_path}
+    }
+    
+    # 3. Checkpoint Loader
+    nodes["3"] = {
+        "class_type": "CheckpointLoaderSimple",
+        "inputs": {"ckpt_name": ckpt_name}
+    }
+    curr_model = ["3", 0]
+    curr_clip = ["3", 1]
+    curr_vae = ["3", 2]
+    
+    # 4. LoRAs encadeados
+    nid_cnt = 20
+    for l in (loras or []):
+        if not l.get("lora"):
+            continue
+        nid_cnt += 1
+        lnid = str(nid_cnt)
+        nodes[lnid] = {
+            "class_type": "LoraLoader",
+            "inputs": {
+                "model": curr_model,
+                "clip": curr_clip,
+                "lora_name": l["lora"],
+                "strength_model": float(l.get("strength_model", 0.8)),
+                "strength_clip": float(l.get("strength_clip", 0.8))
+            }
+        }
+        curr_model = [lnid, 0]
+        curr_clip = [lnid, 1]
+        
+    # 5. Prompt Reviewer para polimento defensivo e injeção de triggers
+    nodes["5"] = {
+        "class_type": "PromptReviewer",
+        "inputs": {
+            "prompt": prompt_pos,
+            "resolve_clothing": True,
+            "resolve_pose": True,
+            "resolve_gaze": True,
+            "resolve_oral": True,
+            "auto_lora_triggers": True,
+            "deduplicate": True,
+            "opt_model": curr_model
+        }
+    }
+    
+    # 6. CLIPTextEncode (Positivo)
+    nodes["6"] = {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "text": ["5", 0],
+            "clip": curr_clip
+        }
+    }
+    
+    # 7. CLIPTextEncode (Negativo)
+    nodes["7"] = {
+        "class_type": "CLIPTextEncode",
+        "inputs": {
+            "text": prompt_neg if prompt_neg else "ugly, deformed, bad anatomy, bad hands, blurry, low quality",
+            "clip": curr_clip
+        }
+    }
+    
+    # 8. VAEEncodeForInpaint
+    nodes["8"] = {
+        "class_type": "VAEEncodeForInpaint",
+        "inputs": {
+            "pixels": ["1", 0],
+            "vae": curr_vae,
+            "mask": ["2", 1],
+            "grow_mask_by": int(grow_mask_by)
+        }
+    }
+    
+    # 9. KSampler
+    nodes["9"] = {
+        "class_type": "KSampler",
+        "inputs": {
+            "model": curr_model,
+            "positive": ["6", 0],
+            "negative": ["7", 0],
+            "latent_image": ["8", 0],
+            "seed": int(seed),
+            "steps": int(steps),
+            "cfg": float(cfg),
+            "sampler_name": str(sampler_name),
+            "scheduler": str(scheduler),
+            "denoise": float(denoise)
+        }
+    }
+    
+    # 10. VAEDecode
+    nodes["10"] = {
+        "class_type": "VAEDecode",
+        "inputs": {
+            "samples": ["9", 0],
+            "vae": curr_vae
+        }
+    }
+    
+    # 11. SaveImage
+    nodes["11"] = {
+        "class_type": "SaveImage",
+        "inputs": {
+            "filename_prefix": "studio/inpaint/Inpaint",
+            "images": ["10", 0]
+        }
+    }
+    
+    return nodes
+
+
 # ==============================================================================
 # --- ANALISADOR VISUAL DE FOTOS E STORE DE FEEDBACK ---
 # ==============================================================================
@@ -1281,6 +1415,83 @@ def register_studio_routes(routes):
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)
 
+    @routes.post("/api/studio/inpaint")
+    async def api_studio_inpaint(request):
+        try:
+            body = await request.json()
+            filename = body.get("filename")
+            mask_data = body.get("mask_base64")
+            if not filename:
+                return web.json_response({"error": "Imagem base obrigatória."}, status=400)
+            if not mask_data:
+                return web.json_response({"error": "Máscara de pintura obrigatória."}, status=400)
+
+            input_rel_image = ensure_image_in_input(filename)
+
+            # Decodificar e salvar máscara PNG
+            import base64
+            if "," in mask_data:
+                mask_data = mask_data.split(",", 1)[1]
+            mask_bytes = base64.b64decode(mask_data)
+            mask_fname = f"inpaint_mask_{int(time.time() * 1000)}.png"
+            mask_path = STUDIO_UPLOAD_DIR / mask_fname
+            with open(mask_path, "wb") as f:
+                f.write(mask_bytes)
+            input_rel_mask = ensure_image_in_input(mask_fname)
+
+            ckpt = body.get("checkpoint", r"illustrious\waiIllustriousSDXL_v170.safetensors")
+            loras = body.get("loras", [])
+            prompt_pos = body.get("prompt", "")
+            prompt_neg = body.get("negative_prompt", "")
+            denoise = float(body.get("denoise", 0.55))
+            grow_mask_by = int(body.get("grow_mask_by", 6))
+            steps = int(body.get("steps", 28))
+            cfg = float(body.get("cfg", 5.5))
+            sampler_name = body.get("sampler_name", "euler")
+            scheduler = body.get("scheduler", "karras")
+            seed = body.get("seed")
+
+            graph = build_inpaint_workflow(
+                image_rel_path=input_rel_image,
+                mask_rel_path=input_rel_mask,
+                ckpt_name=ckpt,
+                loras=loras,
+                prompt_pos=prompt_pos,
+                prompt_neg=prompt_neg,
+                denoise=denoise,
+                grow_mask_by=grow_mask_by,
+                steps=steps,
+                cfg=cfg,
+                sampler_name=sampler_name,
+                scheduler=scheduler,
+                seed=seed
+            )
+
+            client_id = body.get("client_id", "studio_inpaint_ui")
+            port = getattr(server.PromptServer.instance, "port", 8188)
+            prompt_id = None
+            async with aiohttp.ClientSession() as session:
+                payload = {"prompt": graph, "client_id": client_id}
+                async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:
+                    if resp.status != 200:
+                        err_text = await resp.text()
+                        return web.json_response({"error": err_text}, status=resp.status)
+                    try:
+                        resp_data = await resp.json()
+                        prompt_id = resp_data.get("prompt_id")
+                    except Exception:
+                        pass
+
+            return web.json_response({
+                "success": True,
+                "prompt_id": prompt_id,
+                "message": "Refinamento fino manual enfileirado com sucesso!"
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return web.json_response({"error": str(e)}, status=500)
+
     @routes.post("/api/studio/cartoon")
     async def api_studio_cartoon(request):
         try:
@@ -1574,6 +1785,7 @@ def register_studio_routes(routes):
             cartoon = []
             faceswap = []
             pixelart = []
+            inpaint = []
 
             for f in all_files[:60]:
                 item = {
@@ -1591,13 +1803,16 @@ def register_studio_routes(routes):
                     faceswap.append(item)
                 elif "pixelart" in fn:
                     pixelart.append(item)
+                elif "inpaint" in fn:
+                    inpaint.append(item)
 
             return web.json_response({
                 "success": True,
                 "refined": refined[:12],
                 "cartoon": cartoon[:12],
                 "faceswap": faceswap[:12],
-                "pixelart": pixelart[:12]
+                "pixelart": pixelart[:12],
+                "inpaint": inpaint[:12]
             })
         except Exception as e:
             return web.json_response({"error": str(e)}, status=500)

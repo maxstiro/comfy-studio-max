@@ -924,6 +924,9 @@
       <button class="tab-btn" onclick="switchTab('tab-pixelart')">
         <span>👾 Pixel Art & Ícones</span>
       </button>
+      <button id="btn-tab-inpaint" class="tab-btn" onclick="switchTab('tab-inpaint')">
+        <span>🖌️ Refinamento Manual</span>
+      </button>
     </div>
   </div>
 
@@ -1704,6 +1707,177 @@
       </div>
     </div>
 
+
+    <!-- ABA: REFINAMENTO MANUAL FINO (INPAINT / SELEÇÃO DE ÁREA) -->
+    <div id="tab-inpaint" class="tab-content">
+      <div class="grid-layout">
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <span>🖌️ Refinamento Manual Fino (Inpainting & Resample)</span>
+              <span class="badge" style="background: rgba(244,63,94,0.15); color: #fb7185; border: 1px solid rgba(244,63,94,0.3);">Pincel Inteligente</span>
+            </div>
+
+            <!-- Upload / Seleção de Imagem Base -->
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="font-weight: 600;">📥 Imagem para Ajuste Fino</label>
+              <div style="display: flex; gap: 8px;">
+                <input type="file" id="inpaint-file-input" accept="image/*" style="display: none;" onchange="if(this.files[0]) aoCarregarImagemInpaint(this.files[0])">
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('inpaint-file-input').click()" style="flex: 1;">
+                  📁 Carregar do Computador
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="switchTab('tab-tester'); showToast('Abra qualquer card e clique em 🖌️ Refinamento Manual', 'info');" style="flex: 1;">
+                  🖼️ Escolher da Galeria
+                </button>
+              </div>
+            </div>
+
+            <!-- Info Box da Imagem Carregada -->
+            <div id="inpaint-img-info" style="display: none; align-items: center; justify-content: space-between; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.78rem;">
+              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                <span style="color: #38bdf8;">📄</span>
+                <span id="inpaint-filename-text" style="color: #e2e8f0; font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">imagem.png</span>
+              </div>
+              <span id="inpaint-dims-text" class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 0.72rem;">1024x1024</span>
+            </div>
+
+            <!-- Canvas Interativo -->
+            <div class="form-group" style="margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <label style="font-weight: 600; margin: 0;">🎨 Máscara de Seleção (Pinte a área a ser alterada)</label>
+                <div style="display: flex; gap: 6px;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="desfazerMascara()" style="padding: 2px 8px; font-size: 0.72rem;">↩️ Desfazer</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="limparMascara()" style="padding: 2px 8px; font-size: 0.72rem;">🧹 Limpar</button>
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="inverterMascara()" style="padding: 2px 8px; font-size: 0.72rem;">🔄 Inverter</button>
+                </div>
+              </div>
+
+              <div id="inpaint-container" style="position: relative; width: 100%; min-height: 380px; max-height: 520px; background: #070a12; border: 2px dashed rgba(244, 63, 94, 0.35); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none;">
+                <div id="inpaint-placeholder" style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 24px;">
+                  <div style="font-size: 2rem; margin-bottom: 8px;">🖌️</div>
+                  <strong>Nenhuma imagem em edição</strong><br>
+                  <span style="font-size: 0.76rem;">Carregue um arquivo acima ou envie diretamente de qualquer imagem gerada no modal de zoom.</span>
+                </div>
+                <div id="inpaint-canvas-wrapper" style="display: none; position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+                  <img id="inpaint-base-img" style="max-width: 100%; max-height: 520px; object-fit: contain; display: block;">
+                  <canvas id="inpaint-mask-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none;"></canvas>
+                </div>
+              </div>
+
+              <!-- Controles do Pincel -->
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; background: rgba(30, 41, 59, 0.5); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--card-border);">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <label style="font-size: 0.75rem; margin: 0;">Pincel:</label>
+                  <input type="range" id="inpaint-brush-size" min="6" max="120" value="28" oninput="mudarTamanhoPincel(this.value)" style="width: 110px;">
+                  <span id="brush-size-val" style="font-size: 0.75rem; font-weight: 700; color: #fb7185; min-width: 28px;">28px</span>
+                </div>
+                <span style="font-size: 0.7rem; color: var(--text-muted);">Pressione e arraste sobre a imagem</span>
+              </div>
+            </div>
+
+            <!-- Comando em Linguagem Natural / Detalhes Adicionais -->
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label style="font-weight: 600; display: flex; justify-content: space-between;">
+                <span>💬 Instrução / Modificação na Área (Linguagem Natural ou Tags)</span>
+                <span style="font-size: 0.72rem; color: #a5b4fc; font-weight: normal;">Ex: adicione joias, retire a roupa, altere olhos</span>
+              </label>
+              <textarea id="inpaint-instruction" rows="2" placeholder="O que você deseja que a IA faça nesta área marcada? Ex: add delicate gold necklace, smiling open mouth, glowing red eyes, remove panties" style="font-size: 0.8rem;"></textarea>
+              <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarInstrucaoRapida('remove clothing, completely nude')" style="font-size: 0.7rem; padding: 2px 6px;">🔞 Remover Roupa</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarInstrucaoRapida('detailed jewelry, golden necklace, earrings')" style="font-size: 0.7rem; padding: 2px 6px;">💎 Joias / Acessórios</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarInstrucaoRapida('smiling, happy expression, looking at viewer')" style="font-size: 0.7rem; padding: 2px 6px;">😊 Expressão Sorridente</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="adicionarInstrucaoRapida('high quality, highly detailed skin texture, masterpiece')" style="font-size: 0.7rem; padding: 2px 6px;">✨ Retoque & Pele Fina</button>
+              </div>
+            </div>
+
+            <!-- Parâmetros de Inpainting -->
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--card-border); border-radius: var(--radius-sm); padding: 12px; margin-bottom: 12px;">
+              <div style="font-size: 0.82rem; font-weight: 700; color: #a5b4fc; margin-bottom: 8px;">⚙️ Configurações de IA & Modelo</div>
+
+              <!-- Denoising Strength -->
+              <div class="form-group" style="margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.74rem;">
+                  <label style="margin: 0; font-weight: 600;">Força de Alteração (Denoise)</label>
+                  <span id="inpaint-denoise-val" style="font-weight: 700; color: #38bdf8;">0.55</span>
+                </div>
+                <input type="range" id="inpaint-denoise" min="0.20" max="1.00" step="0.05" value="0.55" oninput="mudarDenoiseInpaint(this.value)">
+                <div style="display: flex; justify-content: space-between; font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">
+                  <span>0.20 (Ajuste Sutil)</span>
+                  <span>0.55 (Equilibrado)</span>
+                  <span>1.00 (Redesenhar Completo)</span>
+                </div>
+              </div>
+
+              <!-- Checkpoint & Grow Mask -->
+              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label style="font-size: 0.74rem;">Modelo / Checkpoint</label>
+                  <select id="inpaint-ckpt-select" style="font-size: 0.78rem; width: 100%;">
+                    <!-- Populado dinamicamente -->
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label style="font-size: 0.74rem;">Expansão Máscara (px)</label>
+                  <input type="number" id="inpaint-grow-mask" value="6" min="0" max="64" style="font-size: 0.78rem; width: 100%;">
+                </div>
+              </div>
+
+              <!-- Passos & CFG -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label style="font-size: 0.74rem;">Passos (Steps)</label>
+                  <input type="number" id="inpaint-steps" value="28" min="15" max="50" style="font-size: 0.78rem; width: 100%;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label style="font-size: 0.74rem;">CFG Scale</label>
+                  <input type="number" id="inpaint-cfg" value="5.5" min="2.0" max="12.0" step="0.5" style="font-size: 0.78rem; width: 100%;">
+                </div>
+              </div>
+
+              <!-- LoRAs Detectados -->
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span style="font-size: 0.74rem; font-weight: 600; color: #a5b4fc;">LoRAs Detectados da Imagem:</span>
+                  <span id="inpaint-loras-count" style="font-size: 0.7rem; color: var(--text-muted);">0 ativos</span>
+                </div>
+                <div id="inpaint-loras-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  <span style="font-size: 0.72rem; color: var(--text-muted); font-style: italic;">Nenhum LoRA</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Prompts Originais Detectados -->
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Prompt Base (Detectado da Imagem Original)</label>
+              <textarea id="inpaint-prompt" rows="2" placeholder="Prompt original da imagem..." style="font-size: 0.78rem;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 14px;">
+              <label style="font-size: 0.75rem; color: var(--text-muted);">Prompt Negativo</label>
+              <textarea id="inpaint-negative-prompt" rows="2" style="font-size: 0.78rem;">ugly, bad anatomy, deformed hands, missing fingers, extra limbs, blur, low quality, artifacts</textarea>
+            </div>
+
+            <button class="btn btn-primary btn-block" id="btn-exec-inpaint" onclick="executarRefinamentoFino()">
+              <span>🖌️ Regenerar Área Selecionada</span>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <span>Galeria de Refinamentos Finos</span>
+              <button class="btn btn-secondary btn-sm" onclick="carregarGaleriaInpaint()">🔄 Atualizar</button>
+            </div>
+            <div id="gallery-inpaint" class="image-grid">
+              <p style="color: var(--text-muted); font-size: 0.85rem;">As imagens refinadas aparecerão aqui.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+
   </main>
 
   <!-- MODAL DE ZOOM / INSPEÇÃO -->
@@ -1723,6 +1897,9 @@
             </button>
             <button class="btn btn-primary" id="btn-modal-send-refine" onclick="enviarImagemModalParaRefinamento()">
               <span>✨ Enviar para Detalhamento / Upscale</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-modal-send-inpaint" onclick="enviarImagemModalParaInpaint()" style="border-color: rgba(244,63,94,0.4); color: #fb7185;">
+              <span>🖌️ Refinamento Manual (Pintar Área)</span>
             </button>
             <a id="btn-modal-download" href="#" download class="btn btn-secondary" style="text-align: center;">
               <span>💾 Baixar Arquivo</span>
@@ -1911,6 +2088,7 @@
       if (tabId === 'tab-cartoon') carregarGaleriaCartoon();
       if (tabId === 'tab-faceswap') carregarGaleriaFaceSwap();
       if (tabId === 'tab-pixelart') { updatePixelPrompt(); carregarGaleriaPixel(); }
+      if (tabId === 'tab-inpaint') { initInpaintTab(); }
     }
 
     // =========================================================================
@@ -1990,6 +2168,7 @@
       else if (task === 'cartoon') carregarGaleriaCartoon();
       else if (task === 'faceswap') carregarGaleriaFaceSwap();
       else if (task === 'pixelart') carregarGaleriaPixel();
+      else if (task === 'inpaint') carregarGaleriaInpaint();
     }
 
     function finalizarExecucaoAtiva(sucesso = true) {
@@ -4358,6 +4537,457 @@
     }, 3500);
 
     // Iniciar tudo ao carregar
+    
+    // =========================================================================
+    // MODULO: REFINAMENTO MANUAL FINO & INPAINTING CANVAS
+    // =========================================================================
+    let inpaintState = {
+      imageFilename: null,
+      imageWidth: 1024,
+      imageHeight: 1024,
+      brushSize: 28,
+      isDrawing: false,
+      maskHistory: [],
+      maxHistory: 10,
+      detectedMetadata: null
+    };
+
+    function initInpaintTab() {
+      popularCheckpointsInpaint();
+      setupInpaintCanvasEvents();
+      carregarGaleriaInpaint();
+    }
+
+    function popularCheckpointsInpaint() {
+      const select = document.getElementById('inpaint-ckpt-select');
+      if (!select || select.options.length > 0) return;
+      if (state.checkpoints && state.checkpoints.length > 0) {
+        state.checkpoints.forEach(ck => {
+          const opt = document.createElement('option');
+          opt.value = ck;
+          opt.textContent = ck;
+          select.appendChild(opt);
+        });
+      }
+    }
+
+    function mudarTamanhoPincel(val) {
+      inpaintState.brushSize = parseInt(val, 10);
+      const span = document.getElementById('brush-size-val');
+      if (span) span.textContent = val + 'px';
+    }
+
+    function mudarDenoiseInpaint(val) {
+      const span = document.getElementById('inpaint-denoise-val');
+      if (span) span.textContent = parseFloat(val).toFixed(2);
+    }
+
+    function adicionarInstrucaoRapida(text) {
+      const textarea = document.getElementById('inpaint-instruction');
+      if (!textarea) return;
+      if (textarea.value.trim()) {
+        textarea.value += ', ' + text;
+      } else {
+        textarea.value = text;
+      }
+    }
+
+    async function aoCarregarImagemInpaint(file) {
+      if (!file) return;
+      showToast('Enviando imagem para o canvas...', 'info');
+
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const upRes = await fetch('/api/studio/upload', { method: 'POST', body: formData });
+        const upData = await upRes.json();
+        if (!upData.success) {
+          showToast(upData.error || 'Erro ao carregar imagem', 'error');
+          return;
+        }
+
+        inpaintState.imageFilename = upData.filename;
+        const imgUrl = `/view?filename=${encodeURIComponent(upData.filename)}&type=input`;
+        
+        carregarImagemNoCanvas(imgUrl, upData.filename);
+
+        const metaRes = await fetch('/api/studio/read_png_info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: upData.filename })
+        });
+        const metaData = await metaRes.json();
+        if (metaData.success) {
+          inpaintState.detectedMetadata = metaData;
+          aplicarMetadadosInpaint(metaData);
+          showToast('Metadados e parâmetros da imagem detectados com sucesso!', 'success');
+        } else {
+          showToast('Imagem carregada pronta para seleção manual.', 'info');
+        }
+      } catch (err) {
+        showToast('Erro ao processar imagem: ' + err.message, 'error');
+      }
+    }
+
+    function aplicarMetadadosInpaint(meta) {
+      if (meta.checkpoint) {
+        const ckptSel = document.getElementById('inpaint-ckpt-select');
+        if (ckptSel) {
+          let found = false;
+          for (let opt of ckptSel.options) {
+            if (opt.value === meta.checkpoint || opt.value.includes(meta.checkpoint)) {
+              ckptSel.value = opt.value;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            const newOpt = document.createElement('option');
+            newOpt.value = meta.checkpoint;
+            newOpt.textContent = meta.checkpoint;
+            newOpt.selected = true;
+            ckptSel.prepend(newOpt);
+          }
+        }
+      }
+
+      if (meta.prompt) {
+        const promptInput = document.getElementById('inpaint-prompt');
+        if (promptInput) promptInput.value = meta.prompt;
+      }
+
+      if (meta.negative_prompt) {
+        const negInput = document.getElementById('inpaint-negative-prompt');
+        if (negInput) negInput.value = meta.negative_prompt;
+      }
+
+      const lorasList = document.getElementById('inpaint-loras-list');
+      const lorasCount = document.getElementById('inpaint-loras-count');
+      if (lorasList) {
+        lorasList.innerHTML = '';
+        if (meta.loras && meta.loras.length > 0) {
+          if (lorasCount) lorasCount.textContent = `${meta.loras.length} ativos`;
+          meta.loras.forEach(l => {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.style.background = 'rgba(99,102,241,0.2)';
+            badge.style.border = '1px solid rgba(99,102,241,0.4)';
+            badge.style.color = '#c7d2fe';
+            badge.style.fontSize = '0.7rem';
+            const shortName = (l.lora || '').split(/[\/\\]/).pop().replace('.safetensors', '');
+            badge.textContent = `${shortName} (${l.strength_model || 0.8})`;
+            badge.dataset.lora = l.lora;
+            badge.dataset.strength = l.strength_model || 0.8;
+            lorasList.appendChild(badge);
+          });
+        } else {
+          if (lorasCount) lorasCount.textContent = '0 ativos';
+          lorasList.innerHTML = '<span style="font-size: 0.72rem; color: var(--text-muted); font-style: italic;">Nenhum LoRA</span>';
+        }
+      }
+    }
+
+    function carregarImagemNoCanvas(url, filename) {
+      const wrapper = document.getElementById('inpaint-canvas-wrapper');
+      const placeholder = document.getElementById('inpaint-placeholder');
+      const baseImg = document.getElementById('inpaint-base-img');
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      const infoBox = document.getElementById('inpaint-img-info');
+      const fnameText = document.getElementById('inpaint-filename-text');
+      const dimsText = document.getElementById('inpaint-dims-text');
+
+      baseImg.onload = () => {
+        inpaintState.imageWidth = baseImg.naturalWidth;
+        inpaintState.imageHeight = baseImg.naturalHeight;
+        canvas.width = baseImg.naturalWidth;
+        canvas.height = baseImg.naturalHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        inpaintState.maskHistory = [];
+
+        wrapper.style.display = 'block';
+        placeholder.style.display = 'none';
+        if (infoBox) infoBox.style.display = 'flex';
+        if (fnameText) fnameText.textContent = filename || 'imagem_base.png';
+        if (dimsText) dimsText.textContent = `${baseImg.naturalWidth}x${baseImg.naturalHeight}`;
+      };
+      baseImg.src = url;
+    }
+
+    function setupInpaintCanvasEvents() {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas || canvas._events_attached) return;
+      canvas._events_attached = true;
+
+      const getPos = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return {
+          x: (clientX - rect.left) * scaleX,
+          y: (clientY - rect.top) * scaleY
+        };
+      };
+
+      const startDraw = (e) => {
+        e.preventDefault();
+        inpaintState.isDrawing = true;
+        salvarEstadoMascara();
+        const pos = getPos(e);
+        desenharPincel(pos.x, pos.y);
+      };
+
+      const draw = (e) => {
+        if (!inpaintState.isDrawing) return;
+        e.preventDefault();
+        const pos = getPos(e);
+        desenharPincel(pos.x, pos.y);
+      };
+
+      const stopDraw = (e) => {
+        if (inpaintState.isDrawing) {
+          inpaintState.isDrawing = false;
+        }
+      };
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', draw);
+      window.addEventListener('mouseup', stopDraw);
+
+      canvas.addEventListener('touchstart', startDraw, { passive: false });
+      canvas.addEventListener('touchmove', draw, { passive: false });
+      window.addEventListener('touchend', stopDraw);
+    }
+
+    function desenharPincel(x, y) {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.72)';
+      ctx.beginPath();
+      ctx.arc(x, y, inpaintState.brushSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function salvarEstadoMascara() {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (inpaintState.maskHistory.length >= inpaintState.maxHistory) {
+        inpaintState.maskHistory.shift();
+      }
+      inpaintState.maskHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    }
+
+    function desfazerMascara() {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas || inpaintState.maskHistory.length === 0) return;
+      const ctx = canvas.getContext('2d');
+      const lastState = inpaintState.maskHistory.pop();
+      ctx.putImageData(lastState, 0, 0);
+    }
+
+    function limparMascara() {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas) return;
+      salvarEstadoMascara();
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function inverterMascara() {
+      const canvas = document.getElementById('inpaint-mask-canvas');
+      if (!canvas) return;
+      salvarEstadoMascara();
+      const ctx = canvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 10) {
+          data[i + 3] = 0;
+        } else {
+          data[i] = 244;
+          data[i + 1] = 63;
+          data[i + 2] = 94;
+          data[i + 3] = 180;
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    function gerarMascaraBinariaBase64() {
+      const maskCanvas = document.getElementById('inpaint-mask-canvas');
+      if (!maskCanvas) return null;
+      const binCanvas = document.createElement('canvas');
+      binCanvas.width = maskCanvas.width;
+      binCanvas.height = maskCanvas.height;
+      const binCtx = binCanvas.getContext('2d');
+
+      binCtx.fillStyle = '#000000';
+      binCtx.fillRect(0, 0, binCanvas.width, binCanvas.height);
+
+      const maskCtx = maskCanvas.getContext('2d');
+      const maskData = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height).data;
+      const binImgData = binCtx.getImageData(0, 0, binCanvas.width, binCanvas.height);
+      const binData = binImgData.data;
+
+      let hasDrawnPixels = false;
+      for (let i = 0; i < maskData.length; i += 4) {
+        if (maskData[i + 3] > 20) {
+          binData[i] = 255;
+          binData[i + 1] = 255;
+          binData[i + 2] = 255;
+          binData[i + 3] = 255;
+          hasDrawnPixels = true;
+        }
+      }
+      if (!hasDrawnPixels) {
+        return null;
+      }
+      binCtx.putImageData(binImgData, 0, 0);
+      return binCanvas.toDataURL('image/png');
+    }
+
+    async function executarRefinamentoFino() {
+      if (!inpaintState.imageFilename) {
+        showToast('Por favor, carregue uma imagem para refinar.', 'error');
+        return;
+      }
+      const maskB64 = gerarMascaraBinariaBase64();
+      if (!maskB64) {
+        showToast('Pinte a área da imagem que você deseja refinar usando o pincel!', 'warning');
+        return;
+      }
+
+      const instruction = (document.getElementById('inpaint-instruction')?.value || '').trim();
+      const basePrompt = (document.getElementById('inpaint-prompt')?.value || '').trim();
+      const negPrompt = (document.getElementById('inpaint-negative-prompt')?.value || '').trim();
+      const denoise = parseFloat(document.getElementById('inpaint-denoise')?.value || '0.55');
+      const growMask = parseInt(document.getElementById('inpaint-grow-mask')?.value || '6', 10);
+      const steps = parseInt(document.getElementById('inpaint-steps')?.value || '28', 10);
+      const cfg = parseFloat(document.getElementById('inpaint-cfg')?.value || '5.5');
+      const ckpt = document.getElementById('inpaint-ckpt-select')?.value || "illustrious\\waiIllustriousSDXL_v170.safetensors";
+
+      const loras = [];
+      document.querySelectorAll('#inpaint-loras-list .badge').forEach(b => {
+        if (b.dataset.lora) {
+          loras.push({
+            lora: b.dataset.lora,
+            strength_model: parseFloat(b.dataset.strength || '0.8'),
+            strength_clip: parseFloat(b.dataset.strength || '0.8')
+          });
+        }
+      });
+
+      let finalPrompt = basePrompt;
+      if (instruction) {
+        if (finalPrompt) {
+          finalPrompt = `(${instruction}:1.35), ${finalPrompt}`;
+        } else {
+          finalPrompt = instruction;
+        }
+      }
+
+      const btn = document.getElementById('btn-exec-inpaint');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Enfileirando Refinamento Fino...</span>';
+      }
+
+      state.isGenerating = true;
+      state.activeTaskType = 'inpaint';
+      state.batchTotal = 1;
+      state.batchCompleted = 0;
+      showProgressHub(true, 'Refinamento Manual (Inpaint)', 'Iniciando modelo...', 1);
+      showToast('Enfileirando refinamento na área selecionada...', 'info');
+
+      try {
+        const payload = {
+          filename: inpaintState.imageFilename,
+          mask_base64: maskB64,
+          prompt: finalPrompt,
+          negative_prompt: negPrompt,
+          checkpoint: ckpt,
+          loras: loras,
+          denoise: denoise,
+          grow_mask_by: growMask,
+          steps: steps,
+          cfg: cfg,
+          client_id: state.clientId || 'studio_inpaint_ui'
+        };
+
+        const res = await fetch('/api/studio/inpaint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+          showToast(data.error || 'Erro ao enfileirar inpainting', 'error');
+          finalizarExecucaoAtiva(false);
+          return;
+        }
+
+        showToast('Refinamento Fino em andamento! Acompanhe o progresso.', 'success');
+        state.activePromptId = data.prompt_id;
+      } catch (err) {
+        showToast('Erro na requisição: ' + err.message, 'error');
+        finalizarExecucaoAtiva(false);
+      }
+    }
+
+    async function carregarGaleriaInpaint() {
+      const container = document.getElementById('gallery-inpaint');
+      if (!container) return;
+      try {
+        const res = await fetch('/api/studio/gallery?t=' + Date.now());
+        const data = await res.json();
+        const items = data.inpaint || [];
+        if (items.length === 0) {
+          container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhum refinamento manual recente encontrado.</p>';
+          return;
+        }
+        container.innerHTML = items.map(img => `
+          <div class="image-card" onclick="abrirModalZoom('${img.url}', '${img.filename}', 'Refinamento Manual', '')">
+            <img src="${img.url}" loading="lazy" style="width: 100%; height: 160px; object-fit: cover; border-radius: var(--radius-sm);">
+            <div style="padding: 6px; font-size: 0.72rem; color: #a5b4fc; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+              ${img.filename}
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {}
+    }
+
+    function enviarImagemModalParaInpaint() {
+      if (!state.currentModalImage) return;
+      const filename = state.currentModalImage.filename;
+      const url = state.currentModalImage.url;
+      fecharModalZoom();
+      switchTab('tab-inpaint');
+      aoCarregarImagemInpaintPorNome(filename, url);
+    }
+
+    async function aoCarregarImagemInpaintPorNome(filename, url) {
+      inpaintState.imageFilename = filename;
+      carregarImagemNoCanvas(url, filename);
+      try {
+        const metaRes = await fetch('/api/studio/read_png_info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: filename })
+        });
+        const metaData = await metaRes.json();
+        if (metaData.success) {
+          inpaintState.detectedMetadata = metaData;
+          aplicarMetadadosInpaint(metaData);
+          showToast('Metadados da imagem carregados para o Refinamento Fino!', 'success');
+        }
+      } catch (e) {}
+    }
+
     window.addEventListener('DOMContentLoaded', inicializarApp);
   </script>
 </body>

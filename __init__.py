@@ -1308,11 +1308,11 @@ class PromptReviewer:
                         tags.append('(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.6), (mermaid_tail:1.5), (single_tail:1.6)')
                         logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica (single_tail).')
                     if not any('amermaidfxm' in t.lower() for t in tags):
-                        tags.append('<lora:illustrious/monster_girls/AMermaidFXM_concept-10:0.8>, mermaidxl')
+                        tags.append('<lora:AMermaidFXM_concept-10:0.8>, mermaidxl')
                         logs.append('[Monster LoRA Loaded] LoRA AMermaidFXM_concept-10 acoplado para alta fidelidade da sereia.')
                 elif c_name == 'lamia':
                     if not any('alamiaxl' in t.lower() for t in tags):
-                        tags.append('<lora:illustrious/monster_girls/ALamiaXL_concept-10:0.8>, lamiaxl')
+                        tags.append('<lora:ALamiaXL_concept-10:0.8>, lamiaxl')
                         logs.append('[Monster LoRA Loaded] LoRA ALamiaXL_concept-10 acoplado para alta fidelidade da lamia.')
 
             # Garantir tags positivas de reforço anatômico sem pernas humanas
@@ -1411,7 +1411,7 @@ class PromptReviewer:
         # 14.3 Robot / Android Girl: LoRA Especialista de Juntas Mecanicas
         if any(k in full_text_lower for k in ['robot_girl', 'android_girl', 'cyborg', 'synthetic_skin', 'mechanical_joints']):
             if not any('arobotgirls' in t.lower() for t in tags):
-                tags.append('<lora:illustrious/monster_girls/ARobotGirls_Concept-12:0.8>, robotxl')
+                tags.append('<lora:ARobotGirls_Concept-12:0.8>, robotxl')
                 logs.append('[Monster LoRA Loaded] LoRA ARobotGirls_Concept-12 acoplado para detalhes roboticos e juntas mecanicas.')
 
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real (See-Through Body)

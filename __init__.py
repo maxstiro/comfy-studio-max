@@ -16,23 +16,24 @@ if not (COMFY_ROOT / "main.py").exists() and pathlib.Path(r"D:\IA\ComfyUI").exis
     COMFY_ROOT = pathlib.Path(r"D:\IA\ComfyUI")
 
 # --- TRAVA DE INSTÂNCIA ÚNICA (PREVINE EXECUÇÃO DUPLICADA) ---
-LOCK_PATH = COMFY_ROOT / "user" / "comfy.lock"
-_lock_file = None
+if os.environ.get("COMFY_NO_LOCK") != "1":
+    LOCK_PATH = COMFY_ROOT / "user" / "comfy.lock"
+    _lock_file = None
 
-try:
-    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _lock_file = open(LOCK_PATH, "a+")
-    _lock_file.seek(0)
-    msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-    _lock_file.truncate(0)
-    _lock_file.write(f"PID: {os.getpid()}\n")
-    _lock_file.flush()
-except (IOError, PermissionError, OSError):
-    print("\n" + "=" * 70)
-    print("[BLOQUEIO] JA EXISTE UMA INSTANCIA DO COMFYUI EM EXECUCAO!")
-    print("Abortando esta segunda execucao para evitar conflito de portas e GPU.")
-    print("=" * 70 + "\n")
-    sys.exit(0)
+    try:
+        LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _lock_file = open(LOCK_PATH, "a+")
+        _lock_file.seek(0)
+        msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        _lock_file.truncate(0)
+        _lock_file.write(f"PID: {os.getpid()}\n")
+        _lock_file.flush()
+    except (IOError, PermissionError, OSError):
+        print("\n" + "=" * 70)
+        print("[BLOQUEIO] JA EXISTE UMA INSTANCIA DO COMFYUI EM EXECUCAO!")
+        print("Abortando esta segunda execucao para evitar conflito de portas e GPU.")
+        print("=" * 70 + "\n")
+        sys.exit(0)
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
@@ -591,8 +592,14 @@ LORA_TRIGGER_REGISTRY = {
     'disney': 'DISNEY_ANIMATION',
     '3d_stylized_style_v2': '3d stylized, 3d style',
     '3d_stylized': '3d stylized, 3d style',
+    'afkarenaillustrious': 'afk arena, afk style',
+    'afkarena': 'afk arena, afk style',
     'afkarenallustrious': 'afk arena, afk style',
     'afkjourneyillustrious': 'afk journey, afk style',
+    'smooth_booster_v5': 'smooth booster',
+    'smooth_booster': 'smooth booster',
+    'illustriousxlv01_stabilizer_v1.198': '',
+    'illustriousxlv01_stabilizer': '',
     'dungeon_squad_illustriousv5': 'dungeon squad style, pixel art, retro rpg sprite',
     'dungeon_squad': 'dungeon squad style, pixel art, retro rpg sprite',
     'fantasiastyle_illustrious_byjaneb': 'fantasia style, fantasia',
@@ -2373,10 +2380,24 @@ def _resolve_prompt_from_graph(p_data: dict) -> str:
             if isinstance(p_ref, list) and len(p_ref) == 2:
                 base_txt = _trace(p_ref[0], visited.copy())
                 opt_trigs = inputs.get("opt_lora_triggers", "")
+                try:
+                    reviewer = PromptReviewer()
+                    reviewed, _ = reviewer.review_prompt(base_txt, opt_lora_triggers=opt_trigs)
+                    if reviewed:
+                        return reviewed
+                except Exception:
+                    pass
                 if opt_trigs and opt_trigs not in base_txt:
                     base_txt = f"{base_txt}, {opt_trigs}"
                 return base_txt
             elif isinstance(p_ref, str):
+                try:
+                    reviewer = PromptReviewer()
+                    reviewed, _ = reviewer.review_prompt(p_ref, opt_lora_triggers=inputs.get("opt_lora_triggers", ""))
+                    if reviewed:
+                        return reviewed
+                except Exception:
+                    pass
                 return p_ref
 
         # 6. ImpactWildcardEncode
@@ -2471,7 +2492,22 @@ def _extract_tester_image_meta(img_path):
                                     "strength_model": round(float(inputs.get("strength_model", inputs.get("strength", 0.8))), 2)
                                 })
 
-                # 5. Identificar nome do conjunto / combo
+                # 4.1 Extrair LoRAs inline injetados no prompt (<lora:nome:peso>)
+                if prompt_str:
+                    for m_lora, m_strength in re.findall(r'<lora:([^:>]+)(?::([^>]+))?>', prompt_str):
+                        clean_stem = pathlib.Path(m_lora).stem
+                        if clean_stem not in seen_loras:
+                            seen_loras.add(clean_stem)
+                            f_name = _friendly_lora_name(clean_stem)
+                            try:
+                                st_val = round(float(m_strength), 2) if m_strength else 0.8
+                            except ValueError:
+                                st_val = 0.8
+                            loras.append({
+                                "lora": clean_stem,
+                                "friendly_name": f_name,
+                                "strength_model": st_val
+                            })
                 # (A) Primeiro verifica se bate com algum combo aprovado nomeado pelo usuário
                 approved_combo_name = _match_approved_combo_name(checkpoint, loras)
                 if approved_combo_name:

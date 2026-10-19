@@ -51,6 +51,19 @@ Este arquivo rastreia todas as decisões técnicas, regras de inteligência de p
   - `_match_approved_combo_name` ajustado para tolerar LoRAs raciais injetados dinamicamente via checagem de subconjunto (`subset`).
   - Cache local no frontend (`comboNameMemory`) para impedir badges de presets de sumirem ou oscilarem durante gravações no disco.
 
+### 5. Adaptação Inteligente de Proporções & Lightbox Widescreen
+- **Grid Adaptativo com `grid-auto-flow: dense`**:
+  - Imagens com orientação **Landscape (16:9 / Widescreen)** recebem automaticamente classe `.card-landscape` e ocupam 2 colunas (`grid-column: span 2`) em telas $\ge 768px$.
+  - Elimina a miniaturização de fotos horizontais, proporcionando largura generosa (~600px+) e equilíbrio de altura com os cards verticais 9:16.
+- **Detecção Automática de Aspect Ratio**:
+  - Função JS `detectImageCardAspect()` inspeciona `naturalWidth / naturalHeight` da imagem carregada e aplica badges visuais discretos (`16:9`, `9:16`, `1:1`) e classes dedicadas.
+- **Controle de Densidade de Grid**:
+  - Seletor de densidade em ambas as galerias: **Compacto** (220px), **Médio** (290px padrão), **Grande** (420px).
+- **Novo Modal de Zoom Lightbox Imersivo (96vw x 94vh)**:
+  - Canvas central cinematográfico ocupando até 88vh de altura e largura total disponível.
+  - Exibição de dimensões reais (ex: `1344 x 768 px`) e proporção no cabeçalho.
+  - Sidebar lateral de 380px com botão de recolhimento suave (`toggleModalZoomSidebar`) para **Modo Foco 100% Imersivo**.
+
 ---
 
 ## 📐 Valores de Referência de Desenvolvimento
@@ -69,4 +82,5 @@ Este arquivo rastreia todas as decisões técnicas, regras de inteligência de p
 ### Portas de Rede
 - **8188**: ComfyUI API & Engine
 - **8180**: Studio Max Manager (Interface Desacoplada)
+
 

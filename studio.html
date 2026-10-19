@@ -2521,22 +2521,35 @@
     }
 
     async function inicializarApp() {
+      // 1. Atualização imediata do status do motor e polling contínuo a cada 5s
+      atualizarStatusMotor();
+      if (!engineCheckTimer) {
+        engineCheckTimer = setInterval(() => atualizarStatusMotor(), 5000);
+      }
       initComfyWebSocket();
+
+      // 2. Carregamento do Testador de Combinações e Presets Aprovados
       try {
         const res = await fetch('/api/combo_tester/status?t=' + Date.now());
-        const data = await res.json();
-        state.images = data.images || [];
-        state.savedImages = data.saved_images || [];
-        state.savedGallery = data.saved_gallery || [];
+        if (res.ok) {
+          const data = await res.json();
+          state.images = data.images || [];
+          state.savedImages = data.saved_images || [];
+          state.savedGallery = data.saved_gallery || [];
 
-        // Atualiza dinamicamente as listas de modelos e LoRAs
-        atualizarModelosEListas(data.checkpoints, data.available_loras);
+          // Atualiza dinamicamente as listas de modelos e LoRAs
+          atualizarModelosEListas(data.checkpoints, data.available_loras);
 
-        renderApprovedCombos(data.approved_combos || []);
-        renderTesterActiveCombo(data.current_test);
-        renderTesterImages(data.images || []);
+          renderApprovedCombos(data.approved_combos || []);
+          renderTesterActiveCombo(data.current_test);
+          renderTesterImages(data.images || []);
+        }
+      } catch (e) {
+        console.warn('[Studio] Aviso ao carregar status do testador:', e);
+      }
 
-        // Verifica hash da URL, localStorage ou parâmetro para abrir diretamente a aba salva
+      // 3. Inicialização garantida de abas e presets
+      try {
         let initialTab = (window.location.hash || '').replace('#', '');
         if (!initialTab || !document.getElementById(initialTab)) {
           try {
@@ -2557,7 +2570,7 @@
         popularDropdownItensPixel('armas');
         updatePixelPrompt();
       } catch (e) {
-        console.error('Erro na inicialização:', e);
+        console.error('Erro na inicialização de abas/presets:', e);
       }
     }
 

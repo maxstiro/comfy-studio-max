@@ -154,6 +154,45 @@ async def handle_view_image(request):
     return web.Response(status=404, text=f"Imagem não encontrada: {filename}")
 
 
+@routes.get("/brand_avatar.png")
+async def handle_brand_avatar(request):
+    """Serve o mascote oficial do Studio para o header e favicon."""
+    for p in [BASE_INPUT_DIR / "brand_avatar.png", CURRENT_DIR / "brand_avatar.png", COMFY_ROOT / "input" / "brand_avatar.png"]:
+        if p.exists() and p.is_file():
+            resp = web.FileResponse(p)
+            resp.headers["Cache-Control"] = "public, max-age=86400"
+            return resp
+    return web.Response(status=404, text="Avatar não encontrado")
+
+
+@routes.get("/tester_images/{filename}")
+async def handle_tester_images(request):
+    """Serve imagens geradas do testador de combinações."""
+    filename = request.match_info["filename"]
+    target = BASE_OUTPUT_DIR / "tester" / filename
+    if not target.exists() or not target.is_file():
+        target = BASE_OUTPUT_DIR / "tester_saved" / filename
+    if target.exists() and target.is_file():
+        resp = web.FileResponse(target)
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+    return web.Response(status=404, text="Imagem não encontrada")
+
+
+@routes.get("/tester_saved_images/{filename}")
+async def handle_tester_saved_images(request):
+    """Serve imagens guardadas do testador de combinações."""
+    filename = request.match_info["filename"]
+    target = BASE_OUTPUT_DIR / "tester_saved" / filename
+    if not target.exists() or not target.is_file():
+        target = BASE_OUTPUT_DIR / "tester" / filename
+    if target.exists() and target.is_file():
+        resp = web.FileResponse(target)
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+    return web.Response(status=404, text="Imagem salva não encontrada")
+
+
 # ==============================================================================
 # --- CONTROLE DE CICLO DE VIDA DO COMFYUI (START / STOP / RESTART / STATUS) ---
 # ==============================================================================
@@ -346,16 +385,183 @@ async def handle_save_pixelart_presets(request):
 
 
 # ==============================================================================
-# --- PROXY REVERSO TRANSPARENTE PARA O COMFYUI (/prompt, /queue, /history) ---
+# --- FALLBACK AUTÔNOMO DE DADOS QUANDO COMFYUI ESTIVER OFFLINE ---
 # ==============================================================================
-@routes.post("/prompt")
-@routes.get("/queue")
-@routes.get("/history")
-@routes.get("/system_stats")
-@routes.post("/upload/image")
+def get_offline_combo_tester_status():
+    """Gera resposta autônoma do testador lendo do disco caso o ComfyUI esteja desligado."""
+    user_default_dir = COMFY_ROOT / "user" / "default"
+
+    current_test = {}
+    for ct_path in [user_default_dir / "current_test_combo.json", user_default_dir / "current_test.json"]:
+        if ct_path.exists():
+            try:
+                with open(ct_path, "r", encoding="utf-8") as f:
+                    current_test = json.load(f)
+                break
+            except Exception:
+                pass
+
+    approved_combos = []
+    approved_file = user_default_dir / "approved_combos.json"
+    if approved_file.exists():
+        try:
+            with open(approved_file, "r", encoding="utf-8") as f:
+                approved_combos = json.load(f).get("approved_combos", [])
+        except Exception:
+            pass
+
+    rejected_combos = []
+    rejected_file = user_default_dir / "rejected_combos.json"
+    if rejected_file.exists():
+        try:
+            with open(rejected_file, "r", encoding="utf-8") as f:
+                rejected_combos = json.load(f).get("rejected_combos", [])
+        except Exception:
+            pass
+
+    saved_metadata = {}
+    saved_meta_file = user_default_dir / "tester_saved_metadata.json"
+    if saved_meta_file.exists():
+        try:
+            with open(saved_meta_file, "r", encoding="utf-8") as f:
+                saved_metadata = json.load(f)
+        except Exception:
+            pass
+
+    saved_gallery = []
+    tester_saved_dir = BASE_OUTPUT_DIR / "tester_saved"
+    if tester_saved_dir.exists():
+        valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
+        s_imgs = sorted([f for f in tester_saved_dir.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
+                        key=lambda f: f.stat().st_mtime, reverse=True)
+        for img in s_imgs:
+            im_meta = saved_metadata.get(img.name, {})
+            saved_gallery.append({
+                "filename": img.name,
+                "url": f"/tester_saved_images/{img.name}",
+                "size_bytes": img.stat().st_size,
+                "timestamp": img.stat().st_mtime,
+                "prompt": im_meta.get("prompt", ""),
+                "seed": im_meta.get("seed", ""),
+                "loras": im_meta.get("loras", []),
+                "checkpoint": im_meta.get("checkpoint", ""),
+                "combo_name": im_meta.get("combo_name", ""),
+                "is_saved": True
+            })
+
+    tester_images = []
+    tester_dir = BASE_OUTPUT_DIR / "tester"
+    if tester_dir.exists():
+        valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
+        t_imgs = sorted([f for f in tester_dir.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
+                        key=lambda f: f.stat().st_mtime, reverse=True)
+        for img in t_imgs[:48]:
+            tester_images.append({
+                "filename": img.name,
+                "url": f"/tester_images/{img.name}",
+                "size_bytes": img.stat().st_size,
+                "timestamp": img.stat().st_mtime,
+                "prompt": "",
+                "seed": "",
+                "loras": [],
+                "checkpoint": current_test.get("checkpoint", ""),
+                "combo_name": "",
+                "is_saved": False,
+                "rounds_age": 0
+            })
+
+    return {
+        "status": "comfyui_offline",
+        "current_test": current_test,
+        "approved_combos": approved_combos,
+        "rejected_combos": rejected_combos,
+        "checkpoints": [],
+        "available_loras": [],
+        "images": tester_images,
+        "saved_images": [img["filename"] for img in saved_gallery],
+        "saved_gallery": saved_gallery,
+        "is_generating": False,
+        "queue_remaining": 0,
+        "running_count": 0,
+        "pending_count": 0
+    }
+
+
+# ==============================================================================
+# --- PROXY BIDIRECIONAL DE WEBSOCKET (/ws) ---
+# ==============================================================================
+@routes.get("/ws")
+async def proxy_comfyui_ws(request):
+    """Proxy bidirecional de WebSocket entre o navegador e o motor ComfyUI."""
+    ws_client = web.WebSocketResponse()
+    await ws_client.prepare(request)
+
+    query_str = request.query_string
+    target_ws_url = f"{COMFYUI_URL.replace('http://', 'ws://').replace('https://', 'wss://')}/ws"
+    if query_str:
+        target_ws_url = f"{target_ws_url}?{query_str}"
+
+    try:
+        async with ClientSession() as session:
+            async with session.ws_connect(target_ws_url) as ws_server:
+                async def client_to_server():
+                    async for msg in ws_client:
+                        if msg.type == WSMsgType.TEXT:
+                            await ws_server.send_str(msg.data)
+                        elif msg.type == WSMsgType.BINARY:
+                            await ws_server.send_bytes(msg.data)
+                        elif msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
+                            break
+
+                async def server_to_client():
+                    async for msg in ws_server:
+                        if msg.type == WSMsgType.TEXT:
+                            await ws_client.send_str(msg.data)
+                        elif msg.type == WSMsgType.BINARY:
+                            await ws_client.send_bytes(msg.data)
+                        elif msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
+                            break
+
+                await asyncio.gather(client_to_server(), server_to_client())
+    except Exception:
+        pass
+    finally:
+        await ws_client.close()
+
+    return ws_client
+
+
+# ==============================================================================
+# --- PROXY REVERSO COMPLETO PARA O COMFYUI (/api/*, /prompt, /queue, etc.) ---
+# ==============================================================================
+@routes.route("*", "/api/combo_tester/{tail:.*}")
+@routes.route("*", "/api/models/{tail:.*}")
+@routes.route("*", "/api/studio/upload")
+@routes.route("*", "/api/studio/refine")
+@routes.route("*", "/api/studio/cartoon")
+@routes.route("*", "/api/studio/faceswap")
+@routes.route("*", "/api/studio/pixelart")
+@routes.route("*", "/api/studio/inpaint")
+@routes.route("*", "/api/studio/detect_subject")
+@routes.route("*", "/api/studio/cartoon_best_weights")
+@routes.route("*", "/api/studio/cartoon_feedback")
+@routes.route("*", "/api/studio/delete_image")
+@routes.route("*", "/api/studio/active_status")
+@routes.route("*", "/prompt")
+@routes.route("*", "/queue")
+@routes.route("*", "/history")
+@routes.route("*", "/history/{tail:.*}")
+@routes.route("*", "/system_stats")
+@routes.route("*", "/upload/image")
+@routes.route("*", "/object_info")
+@routes.route("*", "/object_info/{tail:.*}")
+@routes.route("*", "/extensions")
+@routes.route("*", "/customnode/{tail:.*}")
 async def proxy_comfyui_http(request):
-    """Repassa requisições de execução diretamente para o motor ComfyUI."""
+    """Repassa requisições para o ComfyUI ou entrega fallback offline seguro."""
     if not await check_comfyui_online():
+        if request.path.startswith("/api/combo_tester/status"):
+            return web.json_response(get_offline_combo_tester_status())
         return web.json_response({
             "error": "ComfyUI está desligado ou reiniciando.",
             "comfyui_offline": True,
@@ -367,10 +573,12 @@ async def proxy_comfyui_http(request):
         body = await request.read()
         headers = {k: v for k, v in request.headers.items() if k.lower() not in ["host", "content-length"]}
         async with ClientSession() as session:
-            async with session.request(request.method, target_url, headers=headers, data=body, timeout=120) as resp:
+            async with session.request(request.method, target_url, headers=headers, data=body, timeout=180) as resp:
                 resp_data = await resp.read()
                 return web.Response(body=resp_data, status=resp.status, content_type=resp.content_type)
     except Exception as e:
+        if request.path.startswith("/api/combo_tester/status"):
+            return web.json_response(get_offline_combo_tester_status())
         return web.json_response({"error": f"Erro de comunicação com o ComfyUI: {e}"}, status=502)
 
 

@@ -64,6 +64,27 @@ Este arquivo rastreia todas as decisões técnicas, regras de inteligência de p
   - Exibição de dimensões reais (ex: `1344 x 768 px`) e proporção no cabeçalho.
   - Sidebar lateral de 380px com botão de recolhimento suave (`toggleModalZoomSidebar`) para **Modo Foco 100% Imersivo**.
 
+### 6. Inserção Contextual por Proximidade no `PromptReviewer`
+- **Helper `insert_contextual()`**:
+  - Tags auxiliares e LoRAs injetados dinamicamente são posicionados **imediatamente adjacentes à região semântica que influenciam**:
+    - **Raça e Conceito**: LoRAs e traços de espécies (ex: Sereia, Lamiá, Kitsune, Robô, Medusa) são acoplados ao lado da definição da personagem, e não mais jogados no fim do prompt.
+    - **Pose e Postura**: Reforços de postura e proteção anatômica de camas/colchões são posicionados junto das tags de pose.
+    - **Genital e Modificadores Íntimos**: Slits específicos e anatomia adaptada de criaturas são injetados ao lado das tags de genitália/nudez.
+
+### 7. LoRAs NSFW Especializados sob Demanda (Sem Sorteio Aleatório)
+- **Exclusão de Sorteio**: LoRAs da pasta `models/loras/illustrious/nsfw` foram excluídos da função `get_sampleable_loras()`, garantindo que **nunca** sejam sorteados em combos aleatórios de estilo.
+- **Disparo Estritamente Contextual**:
+  1. `1-Freaky_dicksv3`: Dispara com **50% de chance** quando `1boy` ou `1other` estiver presente no prompt, sorteando um de seus triggers oficiais (`fdicks, veiny penis`, `fdicks, huge penis`, `fdicks, knotted`, etc.) e posicionando ao lado do termo masculino.
+  2. `2-Masturbation with dildo (illustrious) v1`: Dispara quando atividades com objetos/dildo forem chamadas, injetando `dildomasturbation, sex toy, dildo, vaginal object insertion` adjacente ao sex toy.
+  3. `3-spreadanusill`: Dispara quando houver exibição/apresentação do ânus (`spread_anus`, `anus`, etc.), injetando `spreadanusill, spread anus, anus` adjacente ao ânus.
+  4. `4-buttplugs`: Dispara quando plugs forem promptados (`buttplug`, `anal_plug`, etc.), injetando `buttplug, anal object insertion, sex toy` adjacente ao plug.
+
+### 8. Studio Max Always-On (Porta 8180) & Modo Offline
+- **Serviço Sempre Ativo**: A interface na porta `8180` permanece ativa independentemente do motor de GPU na porta `8188`.
+- **Modo Offline Autônomo**: Quando o motor do ComfyUI estiver desligado, o serviço lê diretamente do disco checkpoints, LoRAs, histórico e imagens guardadas, mantendo a galeria 100% navegável.
+- **Home Assistant Viewer Integrado**: Atalhos e cards do Home Assistant (`/latest_image` e `/studio`) agora apontam para a porta `8180`, mantendo a última imagem sempre disponível mesmo com a GPU em repouso.
+- **Scripts de Parada Segura**: `parar.bat` e `comfy.ps1 stop` encerram **apenas** a engine ComfyUI (8188 / GPU), preservando a porta 8180 ativa. Criado `parar_tudo.bat` para encerramento total opcional.
+
 ---
 
 ## 📐 Valores de Referência de Desenvolvimento

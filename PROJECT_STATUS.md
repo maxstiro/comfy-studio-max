@@ -41,6 +41,18 @@ Este arquivo rastreia todas as decisões técnicas, regras de inteligência de p
 
 ---
 
+### 4. Arquitetura Desacoplada e Alta Reatividade (Porta 8180)
+- **Eliminação de Gargalo I/O**:
+  - Implementação de cache em memória `_TESTER_IMAGE_META_CACHE` indexado por `(mtime, size)`, reduzindo a latência do endpoint `/api/combo_tester/status` de **8.5 segundos** para **100 ms** (ganho de 85x).
+  - Remoção de varreduras de disco a cada poll (`refresh=False` por padrão, com refresh explícito via botão e rota `/api/models/scan`).
+- **Sincronização Total WebSocket**:
+  - Injeção dinâmica do `client_id` do Studio no payload de lote do Combo Tester, permitindo transmissão instantânea de progresso de amostragem (passos do KSampler) e execução de nós.
+- **Estabilização de Presets na Galeria**:
+  - `_match_approved_combo_name` ajustado para tolerar LoRAs raciais injetados dinamicamente via checagem de subconjunto (`subset`).
+  - Cache local no frontend (`comboNameMemory`) para impedir badges de presets de sumirem ou oscilarem durante gravações no disco.
+
+---
+
 ## 📐 Valores de Referência de Desenvolvimento
 
 ### Resoluções Recomendadas
@@ -57,3 +69,4 @@ Este arquivo rastreia todas as decisões técnicas, regras de inteligência de p
 ### Portas de Rede
 - **8188**: ComfyUI API & Engine
 - **8180**: Studio Max Manager (Interface Desacoplada)
+

@@ -3154,8 +3154,7 @@ async def api_combo_tester_generate_set(request):
         # Configurar Nó 89 (PromptReviewer) com modelo do nó 47 e triggers automáticos de teste
         if "89" in base_prompt and "inputs" in base_prompt["89"]:
             base_prompt["89"]["inputs"]["opt_model"] = ["47", 0]
-            if lora_triggers:
-                base_prompt["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers)
+            base_prompt["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers) if lora_triggers else ""
 
         # NOTA: Imagens não guardadas são preservadas acumulando por até 3 resorteios de LoRAs.
         # Imagens guardadas já foram movidas para tester_saved.
@@ -3179,8 +3178,7 @@ async def api_combo_tester_generate_set(request):
                 # Garantir rigorosamente que o nó 89 (PromptReviewer) receba os triggers e modelo de LoRAs
                 if "89" in prompt_copy and "inputs" in prompt_copy["89"]:
                     prompt_copy["89"]["inputs"]["opt_model"] = ["47", 0]
-                    if lora_triggers:
-                        prompt_copy["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers)
+                    prompt_copy["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers) if lora_triggers else ""
 
                 # Garantir rigorosamente que o nó 41 (ImpactWildcardEncode) receba o prompt positivo do PromptReviewer (Node 89)
                 if "41" in prompt_copy and "inputs" in prompt_copy["41"]:

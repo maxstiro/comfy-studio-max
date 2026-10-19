@@ -385,10 +385,10 @@ def create_studio_app():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("🚀 INICIANDO STUDIO MAX - SERVIÇO WEB DESACOPLADO & DISTRIBUÍDO")
-    print(f"📡 Interface Web: http://localhost:{STUDIO_PORT}/studio")
-    print(f"🤖 Motor ComfyUI Alvo: {COMFYUI_URL}")
-    print(f"📂 Diretório de Saídas: {BASE_OUTPUT_DIR}")
+    print("[INICIALIZACAO] STUDIO MAX - SERVICO WEB DESACOPLADO & DISTRIBUIDO")
+    print(f"[HTTP] Interface Web: http://localhost:{STUDIO_PORT}/studio")
+    print(f"[TARGET] Motor ComfyUI Alvo: {COMFYUI_URL}")
+    print(f"[PATH] Diretorio de Saidas: {BASE_OUTPUT_DIR}")
     print("=" * 70)
     app = create_studio_app()
     web.run_app(app, host=STUDIO_HOST, port=STUDIO_PORT)

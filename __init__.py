@@ -2306,17 +2306,29 @@ def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
         if not approved_list or not loras_list:
             return ""
 
+        RACIAL_OR_UTILITY_LORA_STEMS = {
+            "alamiaxl_concept-10", "amermaidfxm_concept-10", "arobotgirls_concept-12",
+            "concept_alamiaxl", "concept_amermaidfxm", "concept_arobotgirls"
+        }
+
         img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}
+        filtered_img_stems = {s for s in img_lora_stems if s not in RACIAL_OR_UTILITY_LORA_STEMS}
 
         for combo in approved_list:
             c_loras = combo.get("loras", [])
             c_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in c_loras}
-            
-            # Igualdade exata de conjuntos de LoRAs
-            if img_lora_stems == c_stems:
+            if not c_stems:
+                continue
+
+            # 1. Igualdade exata de conjuntos de LoRAs (completo ou sem loras raciais/utilitários injetados)
+            if img_lora_stems == c_stems or (filtered_img_stems and filtered_img_stems == c_stems):
                 return combo.get("name") or combo.get("id")
-            
-            # Alta similaridade (se 75% dos LoRAs coincidirem e tiver >= 2 LoRAs)
+
+            # 2. Se todos os LoRAs do combo aprovado estão contidos na imagem (subset)
+            if c_stems.issubset(img_lora_stems) and len(c_stems) >= 2:
+                return combo.get("name") or combo.get("id")
+
+            # 3. Alta similaridade (se 75% dos LoRAs coincidirem e tiver >= 2 LoRAs)
             intersection = img_lora_stems.intersection(c_stems)
             if len(intersection) >= max(len(img_lora_stems), len(c_stems)) * 0.75 and len(intersection) >= 2:
                 return combo.get("name") or combo.get("id")
@@ -2429,8 +2441,23 @@ def _resolve_prompt_from_graph(p_data: dict) -> str:
 
     return ""
 
+_TESTER_IMAGE_META_CACHE = {}
+
 def _extract_tester_image_meta(img_path):
-    """Extrai o prompt positivo resolvido, seed, loras e checkpoint do arquivo PNG gerado pelo ComfyUI."""
+    """Extrai o prompt positivo resolvido, seed, loras e checkpoint do arquivo PNG gerado pelo ComfyUI (com cache por mtime/size)."""
+    img_path = pathlib.Path(img_path)
+    cache_key = str(img_path)
+    try:
+        st = img_path.stat()
+        mtime, size = st.st_mtime, st.st_size
+    except Exception:
+        mtime, size = 0, 0
+
+    if cache_key in _TESTER_IMAGE_META_CACHE:
+        c_mtime, c_size, cached_val = _TESTER_IMAGE_META_CACHE[cache_key]
+        if c_mtime == mtime and c_size == size:
+            return cached_val
+
     prompt_str = ""
     seed_val = ""
     loras = []
@@ -2521,8 +2548,14 @@ def _extract_tester_image_meta(img_path):
                 elif checkpoint:
                     combo_name = checkpoint
     except Exception as e:
+        if cache_key in _TESTER_IMAGE_META_CACHE:
+            return _TESTER_IMAGE_META_CACHE[cache_key][2]
         print(f"[ComboTester] Erro ao ler metadados de {img_path.name}: {e}")
-    return prompt_str, seed_val, loras, checkpoint, combo_name
+
+    result = (prompt_str, seed_val, loras, checkpoint, combo_name)
+    if size > 25000 and (prompt_str or checkpoint or loras):
+        _TESTER_IMAGE_META_CACHE[cache_key] = (mtime, size, result)
+    return result
 
 @server.PromptServer.instance.routes.get("/tester_saved_images/{filename}")
 async def get_tester_saved_image(request):
@@ -2643,9 +2676,9 @@ async def api_combo_tester_status(request):
                     "rounds_age": age
                 })
 
-        # Obter lista de Checkpoints e LoRAs dinamicamente
-        available_ckpts = get_available_checkpoints(refresh=True)
-        avail_loras = get_available_loras(refresh=True)
+        # Obter lista de Checkpoints e LoRAs dinamicamente (usando cache sem I/O repetitivo de disco)
+        available_ckpts = get_available_checkpoints(refresh=False)
+        avail_loras = get_available_loras(refresh=False)
 
         # Obter estado real da fila do ComfyUI
         running_count = 0
@@ -3073,6 +3106,7 @@ async def api_combo_tester_generate_set(request):
         data = await request.json() if request.can_read_body else {}
         count = int(data.get("count", 6))
         count = max(1, min(12, count)) # Limite seguro entre 1 e 12 imagens
+        client_id = data.get("client_id") or "combo_tester_ui"
 
         current_test = _load_current_test_data()
         if not current_test:
@@ -3206,7 +3240,7 @@ async def api_combo_tester_generate_set(request):
 
                 payload = {
                     "prompt": prompt_copy,
-                    "client_id": "combo_tester_ui"
+                    "client_id": client_id
                 }
                 try:
                     async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:

@@ -2244,6 +2244,7 @@
       else if (task === 'faceswap') carregarGaleriaFaceSwap();
       else if (task === 'pixelart') carregarGaleriaPixel();
       else if (task === 'inpaint') carregarGaleriaInpaint();
+      else if (task === 'combo_tester') carregarStatusTester();
     }
 
     function finalizarExecucaoAtiva(sucesso = true) {
@@ -2254,6 +2255,16 @@
       state.batchCompleted = 0;
 
       // Restaura botões
+      const testerBtn = document.getElementById('btn-generate-set');
+      if (testerBtn) {
+        testerBtn.disabled = false;
+        testerBtn.innerHTML = '<span>🚀 Gerar Lote de Teste</span>';
+      }
+      if (testerWatcherInterval) {
+        clearInterval(testerWatcherInterval);
+        testerWatcherInterval = null;
+      }
+
       const refineBtn = document.getElementById('btn-execute-refine');
       const refineBtnText = document.getElementById('btn-execute-refine-text');
       if (refineBtn) refineBtn.disabled = false;
@@ -2424,6 +2435,13 @@
             if (nodeId === '1' || nodeId === '2') label = '👾 Configurando Canvas Pixel Art';
             else if (nodeId === '5') label = '⚡ KSampler (Gerando Ícone Pixel Art...)';
             else if (nodeId === '99') label = '💾 Salvando Ícone';
+          } else if (state.activeTaskType === 'combo_tester') {
+            if (nodeId === '9') label = '📦 Carregando Checkpoint Base';
+            else if (nodeId === '47') label = '⚡ Power LoRA Loader';
+            else if (nodeId === '41' || nodeId === '89') label = '🧠 PromptReviewer (Ajustando Prompts & Triggers)';
+            else if (nodeId === '3') label = '⚡ KSampler (Amostrando Imagem de Teste...)';
+            else if (nodeId === '8') label = '🔄 Decodificando VAE';
+            else if (nodeId === '99') label = '💾 Salvando Imagem de Teste';
           }
           updateProgressUI(null, label, `Nó ${nodeId}`);
         }
@@ -2767,6 +2785,8 @@
       }
     }
 
+    const comboNameMemory = new Map();
+
     function renderTesterImages(images) {
       const grid = document.getElementById('tester-images-grid');
       if (!grid) return;
@@ -2781,6 +2801,9 @@
         } else if (img.rounds_age === 2) {
           ageBadge = '<span style="position: absolute; top: 8px; left: 8px; background: rgba(146, 64, 14, 0.92); backdrop-filter: blur(4px); color: #fde68a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(253, 230, 138, 0.3); z-index: 5;">⚠️ Última rodada</span>';
         }
+        const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
+        if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
+
         return `
         <div class="image-card" data-filename="${img.filename}">
           <div class="image-card-thumb" style="position: relative;" onclick="abrirModalZoomItem('${img.filename}', false)">
@@ -2789,7 +2812,7 @@
           </div>
           <div class="image-card-body">
             <div class="image-card-title" title="${img.filename}">${img.filename}</div>
-            ${img.combo_name ? `<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0;" title="Combinação: ${img.combo_name}">🎯 ${img.combo_name}</div>` : ''}
+            ${effectiveCombo ? `<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>` : ''}
             <div class="image-card-actions">
               <button class="btn-star" data-filename="${img.filename}" onclick="guardarImagemTester('${img.filename}', this)">
                 ⭐ Guardar
@@ -2808,7 +2831,11 @@
         grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem guardada ainda. Na aba \'Testador\', clique no botão ⭐ Guardar de qualquer imagem para transferi-la para cá.</p>';
         return;
       }
-      grid.innerHTML = savedList.map(img => `
+      grid.innerHTML = savedList.map(img => {
+        const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
+        if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
+
+        return `
         <div class="image-card" data-filename="${img.filename}">
           <div class="image-card-thumb" onclick="abrirModalZoomItem('${img.filename}', true)">
             <img src="${img.url}?t=${img.timestamp || Date.now()}" loading="lazy" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1200);">
@@ -2818,7 +2845,7 @@
 
             <!-- Exibição Completa do Set de LoRAs e Checkpoint Usados -->
             <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 6px 8px; background: rgba(0,0,0,0.45); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
-              ${img.combo_name ? `<div style="font-size: 0.76rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; text-shadow: 0 0 8px rgba(56,189,248,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Combinação: ${img.combo_name}">🎯 ${img.combo_name}</div>` : ''}
+              ${effectiveCombo ? `<div style="font-size: 0.76rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; text-shadow: 0 0 8px rgba(56,189,248,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>` : ''}
               ${img.checkpoint ? `<div style="font-size: 0.72rem; font-weight: 700; color: #a5b4fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;" title="Modelo: ${img.checkpoint}">📦 ${img.checkpoint}</div>` : ''}
               <div style="display: flex; flex-direction: column; gap: 3px;">
                 ${(img.loras && img.loras.length > 0)
@@ -3154,19 +3181,37 @@
       const ratio = document.getElementById('sel-aspect-ratio').value;
       const count = parseInt(document.getElementById('sel-gen-count').value);
       const isSfw = document.getElementById('chk-tester-sfw')?.checked || false;
+      const clientId = getOrCreateClientId();
       try {
+        state.isGenerating = true;
+        state.activeTaskType = 'combo_tester';
+        state.batchTotal = count;
+        state.batchCompleted = 0;
+        updateProgressUI(5, `Iniciando lote de ${count} imagens...`, 'Preparando');
+
         showToast(`Iniciando geração de ${count} imagens no ComfyUI (${isSfw ? '🛡️ SFW' : '🔞 NSFW'})...`, 'info');
         const res = await fetch('/api/combo_tester/generate_set', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ aspect_ratio: ratio, count: count, is_sfw: isSfw })
+          body: JSON.stringify({
+            aspect_ratio: ratio,
+            count: count,
+            is_sfw: isSfw,
+            client_id: clientId
+          })
         });
         const data = await res.json();
         if (data.success) {
           showToast('Lote iniciado! Acompanhando em tempo real...', 'success');
           startTesterAutoUpdate(count);
+        } else {
+          state.isGenerating = false;
+          finalizarExecucaoAtiva(false);
+          showToast(data.error || 'Erro ao gerar lote', 'error');
         }
       } catch (e) {
+        state.isGenerating = false;
+        finalizarExecucaoAtiva(false);
         showToast('Erro ao gerar lote', 'error');
       }
     }

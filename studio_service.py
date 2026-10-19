@@ -502,8 +502,9 @@ async def proxy_comfyui_ws(request):
         target_ws_url = f"{target_ws_url}?{query_str}"
 
     try:
+        ws_headers = {"Origin": COMFYUI_URL}
         async with ClientSession() as session:
-            async with session.ws_connect(target_ws_url) as ws_server:
+            async with session.ws_connect(target_ws_url, headers=ws_headers) as ws_server:
                 async def client_to_server():
                     async for msg in ws_client:
                         if msg.type == WSMsgType.TEXT:
@@ -571,7 +572,9 @@ async def proxy_comfyui_http(request):
     target_url = f"{COMFYUI_URL}{request.path_qs}"
     try:
         body = await request.read()
-        headers = {k: v for k, v in request.headers.items() if k.lower() not in ["host", "content-length"]}
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in ["host", "content-length", "origin", "referer"]}
+        headers["Origin"] = COMFYUI_URL
+        headers["Referer"] = f"{COMFYUI_URL}/"
         async with ClientSession() as session:
             async with session.request(request.method, target_url, headers=headers, data=body, timeout=180) as resp:
                 resp_data = await resp.read()

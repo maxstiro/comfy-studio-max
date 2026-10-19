@@ -3201,6 +3201,13 @@
             client_id: clientId
           })
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          state.isGenerating = false;
+          finalizarExecucaoAtiva(false);
+          showToast(errData.error || `Erro HTTP ${res.status} ao despachar para o ComfyUI`, 'error');
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           showToast('Lote iniciado! Acompanhando em tempo real...', 'success');
@@ -3213,7 +3220,7 @@
       } catch (e) {
         state.isGenerating = false;
         finalizarExecucaoAtiva(false);
-        showToast('Erro ao gerar lote', 'error');
+        showToast('Erro de conexão ao gerar lote: ' + (e.message || e), 'error');
       }
     }
 

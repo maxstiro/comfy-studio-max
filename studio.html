@@ -2816,6 +2816,15 @@
         renderTesterImages(data.images || []);
         renderSavedImages(state.savedGallery);
 
+        // Atualiza estado do motor (online vs modo offline autônomo)
+        if (data.status === 'comfyui_offline') {
+          isComfyUIOnline = false;
+          renderizarStatusMotor(false);
+        } else if (data.status === 'idle' || data.status === 'ok' || data.is_generating !== undefined) {
+          isComfyUIOnline = true;
+          renderizarStatusMotor(true);
+        }
+
         // Se o ComfyUI estiver processando lote e o watcher não estiver ativo, inicia o monitoramento
         if (data.is_generating && !testerWatcherInterval) {
           startTesterAutoUpdate(data.queue_remaining || 6);
@@ -3376,6 +3385,10 @@
     }
 
     async function gerarSetTeste() {
+      if (!isComfyUIOnline) {
+        showToast('⚡ O motor ComfyUI está desligado (GPU em repouso). Clique em "⚡ Ligar ComfyUI" no topo para gerar!', 'warning');
+        return;
+      }
       const ratio = document.getElementById('sel-aspect-ratio').value;
       const count = parseInt(document.getElementById('sel-gen-count').value);
       const isSfw = document.getElementById('chk-tester-sfw')?.checked || false;

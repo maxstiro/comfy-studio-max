@@ -692,8 +692,49 @@ LORA_TRIGGER_REGISTRY = {
     'pearly_petiflow2': 'pearlypetif, flat color',
     'pearly_sunstone': 'pearlysunst',
     'pearly_vice_and_violence_style': 'pearlyvivi',
-    'sarafaber-anima': 'sf4b3r-style'
+    'sarafaber-anima': 'sf4b3r-style',
+
+    # LoRAs NSFW Específicos sob demanda contextual (NUNCA sortear aleatoriamente)
+    '1-freaky_dicksv3': 'fdicks, veiny penis',
+    'freaky_dicks': 'fdicks, veiny penis',
+    '2-masturbation with dildo (illustrious) v1': 'dildomasturbation, sex toy, dildo',
+    'masturbation with dildo': 'dildomasturbation, sex toy, dildo',
+    '3-spreadanusill': 'spreadanusill, spread anus',
+    'spreadanusill': 'spreadanusill, spread anus',
+    '4-buttplugs': 'buttplug, anal object insertion',
+    'buttplugs': 'buttplug, anal object insertion'
 }
+
+def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_to_end=True, place='after') -> list:
+    """
+    Insere 'new_tag' na lista 'tags' imediatamente adjacente (antes ou depois) à tag mais
+    relevante que contenha uma das 'anchor_keywords'. Evita duplicatas e mantém coerência posicional.
+    """
+    if not new_tag:
+        return tags
+    new_tag_clean = new_tag.strip()
+    if not new_tag_clean:
+        return tags
+
+    # Evita duplicação se a tag exata já existir
+    new_lower = new_tag_clean.lower()
+    if any(new_lower == t.lower().strip() for t in tags):
+        return tags
+
+    best_idx = -1
+    for i, t in enumerate(tags):
+        tl = t.lower()
+        if any(ak.lower() in tl for ak in anchor_keywords):
+            best_idx = i
+            break
+
+    if best_idx != -1:
+        insert_pos = (best_idx + 1) if place == 'after' else best_idx
+        return tags[:insert_pos] + [new_tag_clean] + tags[insert_pos:]
+
+    if fallback_to_end:
+        return tags + [new_tag_clean]
+    return tags
 
 def find_lora_trigger(lora_name: str):
     if not lora_name:
@@ -1312,20 +1353,20 @@ class PromptReviewer:
 
                 if c_name == 'mermaid':
                     if not any('single_fish_tail' in t.lower() for t in tags):
-                        tags.append('(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.6), (mermaid_tail:1.5), (single_tail:1.6)')
-                        logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica (single_tail).')
+                        tags = insert_contextual(tags, '(resting_on_tail:1.3), (curved_tail:1.3), (single_fish_tail:1.6), (mermaid_tail:1.5), (single_tail:1.6)', ['mermaid', '1girl'], place='after')
+                        logs.append('[Mermaid Tail Enforced] Injetada cauda única de peixe curva e anatômica (single_tail) adjacente à raça.')
                     if not any('amermaidfxm' in t.lower() for t in tags):
-                        tags.append('<lora:AMermaidFXM_concept-10:0.8>, mermaidxl')
-                        logs.append('[Monster LoRA Loaded] LoRA AMermaidFXM_concept-10 acoplado para alta fidelidade da sereia.')
+                        tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\AMermaidFXM_concept-10:0.8>, mermaidxl', ['mermaid', 'single_fish_tail'], place='after')
+                        logs.append('[Monster LoRA Loaded] LoRA AMermaidFXM_concept-10 acoplado adjacente à sereia.')
                 elif c_name == 'lamia':
                     if not any('alamiaxl' in t.lower() for t in tags):
-                        tags.append('<lora:ALamiaXL_concept-10:0.8>, lamiaxl')
-                        logs.append('[Monster LoRA Loaded] LoRA ALamiaXL_concept-10 acoplado para alta fidelidade da lamia.')
+                        tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\ALamiaXL_concept-10:0.8>, lamiaxl', ['lamia', '1girl'], place='after')
+                        logs.append('[Monster LoRA Loaded] LoRA ALamiaXL_concept-10 acoplado adjacente à lamia.')
 
             # Garantir tags positivas de reforço anatômico sem pernas humanas
             if not any('no_human_legs' in t.lower() for t in tags):
-                tags.append('(no_human_legs:1.6), (no_legs:1.5), (no_feet:1.5)')
-                logs.append(f'[Monster Anatomy Enforced] Injetado "(no_human_legs:1.6), (no_legs:1.5)" para {c_name} ({c_desc}).')
+                tags = insert_contextual(tags, '(no_human_legs:1.6), (no_legs:1.5), (no_feet:1.5)', [c_name, 'single_fish_tail', 'curved_tail'], place='after')
+                logs.append(f'[Monster Anatomy Enforced] Injetado "(no_human_legs:1.6), (no_legs:1.5)" adjacente a {c_name} ({c_desc}).')
 
             # Adaptação Genital e de Cor para Criaturas Não-Humanas
             genital_signals = {'pussy', 'bare_pussy', 'exposed_pussy', 'vaginal', 'fingering', 'cunnilingus', 'insertion', 'dildo', 'masturbation', 'crotchless'}
@@ -1344,7 +1385,7 @@ class PromptReviewer:
                 if replaced_genitals:
                     logs.append(f'[Monster Genital Adapted] Genitalia adaptada para anatomia de {c_name}: {c_genital}.')
                 elif not any(c_genital in t for t in tags):
-                    tags.append(c_genital)
+                    tags = insert_contextual(tags, c_genital, ['bare_pussy', 'pussy', 'exposed_pussy', 'insertion', c_name], place='after')
                     logs.append(f'[Monster Genital Enforced] Injetada genitalia de especie/cor ({c_genital}) para {c_name}.')
 
         # 14. Slimes e Elementais: Supressão de Cores Humanas e Consistência Elemental
@@ -1371,11 +1412,11 @@ class PromptReviewer:
             if purged_colors:
                 logs.append(f'[Elemental Cleanse] Removidas definicoes humanas de cabelo/olhos {purged_colors} para consistencia elemental.')
             if is_slime and not any('translucent_hair' in t.lower() for t in tags):
-                tags.append('(slime_hair:1.4), (translucent_hair:1.4), (translucent_eyes:1.3), matching_slime_color')
+                tags = insert_contextual(tags, '(slime_hair:1.4), (translucent_hair:1.4), (translucent_eyes:1.3), matching_slime_color', ['slime_girl', '1girl'], place='after')
             for el_k, (el_desc, el_injected) in elemental_types.items():
                 if el_k in full_text_lower:
-                    tags.append(el_injected)
-                    logs.append(f'[Elemental Trait Enforced] Injetadas caracteristicas puras de {el_desc}.')
+                    tags = insert_contextual(tags, el_injected, [el_k, '1girl'], place='after')
+                    logs.append(f'[Elemental Trait Enforced] Injetadas caracteristicas puras de {el_desc} adjacente à personagem.')
                     break
 
         # 14.1 Medusa / Gorgon: Cabelo Canonico de Serpentes Vivas (Purga de Estilos e Cortes Humanos)
@@ -1404,22 +1445,21 @@ class PromptReviewer:
             if purged_medusa_hair:
                 logs.append(f'[Medusa Hair Enforced] Removidos estilos/cores de cabelo humano {purged_medusa_hair} para manter serpentes vivas na cabeca.')
             if not any('living_snakes_for_hair' in t.lower() for t in tags):
-                tags.append('(living_snakes_for_hair:1.5), (writhing_snakes:1.4), (snake_heads_hair:1.5), (medusa_hair:1.4), serpentine_hair')
-                logs.append('[Medusa Hair Enforced] Injetado "living_snakes_for_hair, writhing_snakes, snake_heads_hair" oficial.')
+                tags = insert_contextual(tags, '(living_snakes_for_hair:1.5), (writhing_snakes:1.4), (snake_heads_hair:1.5), (medusa_hair:1.4), serpentine_hair', ['medusa', 'gorgon_girl', '1girl'], place='after')
+                logs.append('[Medusa Hair Enforced] Injetado "living_snakes_for_hair, writhing_snakes, snake_heads_hair" adjacente a Medusa.')
 
         # 14.2 Kitsune & Cerberus: Garantia e Preservacao de Multiplas Caudas (multiple_tails)
         if any(k in full_text_lower for k in ['kitsune', 'nine-tailed_fox', 'nine_tails', 'cerberus_girl', 'multiple_tails']):
-            # Remove qualquer bloqueio acidental ou contradicao de cauda unica
             tags = [t for t in tags if not any(st == t.lower().strip() or f'({st}:' in t.lower() for st in ['single_tail', 'one_tail', 'single_fish_tail'])]
             if 'kitsune' in full_text_lower and not any('multiple_tails' in t.lower() for t in tags):
-                tags.append('(multiple_tails:1.5), (nine_fox_tails:1.4), fluffy_tails')
-                logs.append('[Kitsune Multi-Tails Enforced] Injetado "(multiple_tails:1.5), (nine_fox_tails:1.4), fluffy_tails" canonico.')
+                tags = insert_contextual(tags, '(multiple_tails:1.5), (nine_fox_tails:1.4), fluffy_tails', ['kitsune', 'fox_tail', 'nine_tails', '1girl'], place='after')
+                logs.append('[Kitsune Multi-Tails Enforced] Injetado "(multiple_tails:1.5), (nine_fox_tails:1.4), fluffy_tails" adjacente à Kitsune.')
 
         # 14.3 Robot / Android Girl: LoRA Especialista de Juntas Mecanicas
         if any(k in full_text_lower for k in ['robot_girl', 'android_girl', 'cyborg', 'synthetic_skin', 'mechanical_joints']):
             if not any('arobotgirls' in t.lower() for t in tags):
-                tags.append('<lora:ARobotGirls_Concept-12:0.8>, robotxl')
-                logs.append('[Monster LoRA Loaded] LoRA ARobotGirls_Concept-12 acoplado para detalhes roboticos e juntas mecanicas.')
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\ARobotGirls_Concept-12:0.8>, robotxl', ['robot_girl', 'android_girl', 'cyborg', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA ARobotGirls_Concept-12 acoplado adjacente à garota robo.')
 
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real (See-Through Body)
         ghost_signals = {'ghost_girl', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit'}
@@ -1437,8 +1477,8 @@ class PromptReviewer:
             if purged_skin:
                 logs.append(f'[Ghost Body Cleanse] Removidas tags de pele opaca {purged_skin} para garantir transparencia.')
             if not any('see-through_body' in t.lower() for t in tags):
-                tags.append('(see-through_body:1.5), (translucent_body:1.4), (semi-transparent_skin:1.3), ethereal')
-                logs.append('[Ghost Transparency] Injetado "see-through_body, translucent_body, semi-transparent_skin" oficial.')
+                tags = insert_contextual(tags, '(see-through_body:1.5), (translucent_body:1.4), (semi-transparent_skin:1.3), ethereal', ['ghost_girl', 'phantom', 'banshee', '1girl'], place='after')
+                logs.append('[Ghost Transparency] Injetado "see-through_body, translucent_body, semi-transparent_skin" adjacente ao fantasma.')
 
         # 16. Moderação de Expressões Faciais Excessivas (love-struck é preservado e permitido!)
         drool_heart_tags = {'drooling', 'drool_bead', 'swirling_pupils', 'heart_shaped_pupils'}
@@ -1468,9 +1508,69 @@ class PromptReviewer:
                 else:
                     new_tags.append(t)
             if purged_contacts:
-                new_tags.append('head_tilted_back, pleasure_face, heavy_breathing, blush')
-                tags = new_tags
+                tags = insert_contextual(new_tags, 'head_tilted_back, pleasure_face, heavy_breathing, blush', ['male_out_of_frame', 'faceless_male'], place='after')
                 logs.append(f'[Out-of-Frame Cleanse] Removidas acoes de contato facial {purged_contacts} pois o parceiro esta fora de quadro (male_out_of_frame), evitando cabecas flutuantes deformadas.')
+
+        # 18. LoRAs NSFW Especializados sob Demanda Contextual (NUNCA sorteados aleatoriamente)
+        import random
+        full_text_lower = ' '.join(tags).lower()
+
+        # LoRA 1: Freaky Dicks (50% de chance quando 1boy|1other aparecer no prompt)
+        boy_other_match = re.search(r'\b(1boy|1other|male|partner|penis|dick)\b', full_text_lower)
+        if boy_other_match:
+            if random.random() < 0.50:
+                if not any('1-freaky_dicks' in t.lower() for t in tags):
+                    fdick_triggers = [
+                        'fdicks, veiny penis, huge penis',
+                        'fdicks, veiny penis, realistic',
+                        'fdicks, shiny skin, erection',
+                        'fdicks, knotted, huge penis'
+                    ]
+                    if 'tentacle' in full_text_lower:
+                        chosen_trig = 'fdicks, tentacle penis'
+                    elif any(eq in full_text_lower for eq in ['horse', 'centaur', 'stallion']):
+                        chosen_trig = 'fdicks, horse penis, huge penis'
+                    elif any(rb in full_text_lower for rb in ['robot', 'android', 'cyborg']):
+                        chosen_trig = 'fdicks, robot penis'
+                    else:
+                        chosen_trig = random.choice(fdick_triggers)
+
+                    lora_tag = '<lora:illustrious\\nsfw\\1-Freaky_dicksv3:0.8>'
+                    tags = insert_contextual(tags, lora_tag, ['1boy', '1other', 'large_penis', 'penis', 'male'], place='after')
+                    tags = insert_contextual(tags, chosen_trig, [lora_tag, '1boy', '1other', 'penis'], place='after')
+                    logs.append(f'[NSFW LoRA 1 Injected] Freaky_dicksv3 (50% chance) acoplado adjacente ao termo masculino com trigger "{chosen_trig}".')
+
+        # LoRA 2: Masturbation with Dildo (atividades nsfw com objetos ou sex_toys)
+        dildo_match = any(d in full_text_lower for d in ['dildo', 'sex_toy', 'sex toy', 'object_insertion', 'object insertion', 'vaginal object insertion', 'using_dildo', 'holding_dildo'])
+        if dildo_match:
+            if not any('2-masturbation with dildo' in t.lower() for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\2-Masturbation with dildo (illustrious) v1:0.8>'
+                dildo_trig = 'dildomasturbation, sex toy, dildo, vaginal object insertion'
+                tags = insert_contextual(tags, lora_tag, ['using_dildo', 'holding_dildo', 'dildo', 'sex_toy', 'sex toy', 'insertion', 'masturbation'], place='after')
+                tags = insert_contextual(tags, dildo_trig, [lora_tag, 'dildo', 'sex_toy'], place='after')
+                logs.append('[NSFW LoRA 2 Injected] Masturbation with Dildo acoplado contextualmente ao lado do objeto/sex_toy.')
+
+        # LoRA 3: Spread Anus (apresentação ou exibição do ânus)
+        anus_match = any(a in full_text_lower for a in ['anus', 'spread_anus', 'spread anus', 'showing_anus', 'presenting_anus', 'ass_presentation', 'exposed_anus', 'anal_view'])
+        if anus_match:
+            if not any('3-spreadanusill' in t.lower() for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\3-spreadanusill:0.8>'
+                anus_trig = 'spreadanusill, spread anus, anus'
+                tags = insert_contextual(tags, lora_tag, ['spread_anus', 'showing_anus', 'presenting_anus', 'ass_presentation', 'anus', 'ass'], place='after')
+                tags = insert_contextual(tags, anus_trig, [lora_tag, 'anus', 'ass'], place='after')
+                logs.append('[NSFW LoRA 3 Injected] SpreadAnusIll acoplado contextualmente ao lado da apresentação do ânus.')
+
+        # LoRA 4: Butt Plugs (quando plugs forem promptados)
+        plug_match = any(p in full_text_lower for p in ['buttplug', 'butt_plug', 'butt plug', 'anal_plug', 'tail_plug', 'plug', 'jewel_butt_plug', 'anal_beads'])
+        if plug_match:
+            if not any('4-buttplugs' in t.lower() for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\4-buttplugs:0.8>'
+                plug_trig = 'buttplug, anal object insertion, sex toy'
+                if 'jewel' in full_text_lower:
+                    plug_trig = 'buttplug, jewel butt plug, anal object insertion, sex toy'
+                tags = insert_contextual(tags, lora_tag, ['buttplug', 'butt_plug', 'anal_plug', 'tail_plug', 'plug'], place='after')
+                tags = insert_contextual(tags, plug_trig, [lora_tag, 'buttplug', 'plug'], place='after')
+                logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
 
         reviewed_prompt = ', '.join(tags)
         log_summary = '\n'.join(logs) if logs else '[OK] Nenhum conflito detectado no prompt.'
@@ -2051,9 +2151,12 @@ def get_available_loras(refresh=True):
         return []
 
 def get_sampleable_loras(refresh=False):
-    """Retorna LoRAs adequados para sorteio aleatório, filtrando sliders utilitários e LoRAs dedicados de monster_girls."""
+    """Retorna LoRAs adequados para sorteio aleatório, filtrando sliders utilitários, LoRAs dedicados de monster_girls e LoRAs contextuais de NSFW."""
     all_l = get_available_loras(refresh=refresh)
-    sampleable = [l for l in all_l if not any(skip in l.lower() for skip in ["age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot"])]
+    sampleable = [l for l in all_l if not any(skip in l.lower() for skip in [
+        "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot",
+        "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug"
+    ])]
     return sampleable if sampleable else all_l
 
 

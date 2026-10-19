@@ -387,6 +387,26 @@ async def handle_save_pixelart_presets(request):
 # ==============================================================================
 # --- FALLBACK AUTÔNOMO DE DADOS QUANDO COMFYUI ESTIVER OFFLINE ---
 # ==============================================================================
+def _scan_disk_models():
+    """Varre modelos e loras no disco local em COMFY_ROOT/models quando em modo offline."""
+    checkpoints = []
+    loras = []
+    try:
+        ck_dir = COMFY_ROOT / "models" / "checkpoints"
+        if ck_dir.exists():
+            for f in ck_dir.rglob("*.safetensors"):
+                checkpoints.append(str(f.relative_to(ck_dir)))
+        lora_dir = COMFY_ROOT / "models" / "loras"
+        if lora_dir.exists():
+            for f in lora_dir.rglob("*.safetensors"):
+                if any(skip in f.name.lower() for skip in ["put_loras_here", "model.safetensors"]):
+                    continue
+                loras.append(str(f.relative_to(lora_dir)))
+    except Exception:
+        pass
+    return sorted(checkpoints), sorted(loras)
+
+
 def get_offline_combo_tester_status():
     """Gera resposta autônoma do testador lendo do disco caso o ComfyUI esteja desligado."""
     user_default_dir = COMFY_ROOT / "user" / "default"
@@ -470,13 +490,16 @@ def get_offline_combo_tester_status():
                 "rounds_age": 0
             })
 
+    ckpts, loras = _scan_disk_models()
+
     return {
         "status": "comfyui_offline",
+        "comfyui_online": False,
         "current_test": current_test,
         "approved_combos": approved_combos,
         "rejected_combos": rejected_combos,
-        "checkpoints": [],
-        "available_loras": [],
+        "checkpoints": ckpts,
+        "available_loras": loras,
         "images": tester_images,
         "saved_images": [img["filename"] for img in saved_gallery],
         "saved_gallery": saved_gallery,

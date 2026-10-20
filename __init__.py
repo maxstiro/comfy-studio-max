@@ -682,7 +682,7 @@ LORA_TRIGGER_REGISTRY = {
     'posingdynamicsill': 'posingdynamicsdaal',
     'posingdynamics': 'posingdynamicsdaal',
 
-    # Monster Girls LoRAs (Carregamento sob demanda)
+    # Monster Girls LoRAs (Carregamento sob demanda contextual - Raciais)
     'alamiaxl_concept-10': 'lamiaxl',
     'alamiaxl_concept': 'lamiaxl',
     'alamiaxl': 'lamiaxl',
@@ -692,6 +692,13 @@ LORA_TRIGGER_REGISTRY = {
     'arobotgirls_concept-12': 'robotxl',
     'arobotgirls_concept': 'robotxl',
     'arobotgirls': 'robotxl',
+    'gorgonlora-il-000014': 'snake hair, snake_hair, gorgon',
+    'gorgonlora-il': 'snake hair, snake_hair, gorgon',
+    'gorgonlora': 'snake hair, snake_hair, gorgon',
+    'ghost-sfwnsfw-il.v1.0-000013': 'ghost, translucent body, see-through body',
+    'ghost-sfwnsfw-il': 'ghost, translucent body, see-through body',
+    'ghost-sfwnsfw': 'ghost, translucent body, see-through body',
+    'ghost_sex': 'ghost sex, translucent body',
     'paulinaapcxlp_style-08': 'paulinaapcxlp',
     'paulinaapcxlp': 'paulinaapcxlp',
     'jmoxcomix_style-12': 'jmoxcomic',
@@ -699,6 +706,40 @@ LORA_TRIGGER_REGISTRY = {
     'latrans_-_art_style-000013': 'latrans',
     'latrans': 'latrans',
     'disney_animation_v5-v7': 'disney animation style',
+
+    # Novos LoRAs de Estilo Illustrious (Para sorteio no Combo Tester e identificação geral)
+    'bluefley_style_-_illustration': 'by bluefley',
+    'bluefley': 'by bluefley',
+    'cartoon_saloon_style': 'csstyle',
+    'csstyle': 'csstyle',
+    'creative-angle_v2_naixl': 'creative angle',
+    'creative-angle': 'creative angle',
+    'cutesexyrobutts': 'cutesexyrobutts',
+    'detr1mentall_v01': 'detr1mental',
+    'detr1mental': 'detr1mental',
+    'disgea_characters': 'disgaea_style',
+    'disgea': 'disgaea_style',
+    'explore_the_world_v3.0-000005': 'exploreworld',
+    'explore_the_world': 'exploreworld',
+    'fantasy_art_style': 'fantasy_art',
+    'fantasy_art': 'fantasy_art',
+    'flat_inking': 'flat_inking_style',
+    'flat_inking_style': 'flat_inking_style',
+    'gem': 'by gem',
+    'heylittlekhana_style': 'hlk_style',
+    'hlk_style': 'hlk_style',
+    'jonyeld_style': 'by jonyeld',
+    'jonyeld': 'by jonyeld',
+    'mobile_game_collection_-_mad_tale_style': 'madtalestyle',
+    'mad_tale': 'madtalestyle',
+    'muse_style': 'muse_style',
+    'n1coduran_pixel_art_style': 'by n1co, pixel art',
+    'n1coduran': 'by n1co, pixel art',
+    'raw-color-illustrious': 'raw color',
+    'raw-color': 'raw color',
+    'rule_of_thirds_2': 'rule of thirds',
+    'rule_of_thirds': 'rule of thirds',
+    'vempire': 'vempire',
 
     # Anima
     'between-pages-anima-base-800': 'PagesDaal',
@@ -1449,8 +1490,8 @@ class PromptReviewer:
                     logs.append(f'[Elemental Trait Enforced] Injetadas caracteristicas puras de {el_desc} adjacente à personagem.')
                     break
 
-        # 14.1 Medusa / Gorgon: Cabelo Canonico de Serpentes Vivas (Purga de Estilos e Cortes Humanos)
-        if 'gorgon_girl' in full_text_lower or 'medusa' in full_text_lower or 'living_snakes_hair' in full_text_lower:
+        # 14.1 Medusa / Gorgon: Cabelo Canonico de Serpentes Vivas e LoRA Gorgon
+        if any(k in full_text_lower for k in ['gorgon_girl', 'gorgon', 'medusa', 'living_snakes_hair', 'snake_hair']):
             human_hairstyles = {
                 'french_braid', 'twin_braids', 'braid', 'braids', 'single_braid', 'side_braid',
                 'ponytail', 'high_ponytail', 'side_ponytail', 'twin_ponytails', 'pigtails', 'twintails',
@@ -1475,8 +1516,11 @@ class PromptReviewer:
             if purged_medusa_hair:
                 logs.append(f'[Medusa Hair Enforced] Removidos estilos/cores de cabelo humano {purged_medusa_hair} para manter serpentes vivas na cabeca.')
             if not any('living_snakes_for_hair' in t.lower() for t in tags):
-                tags = insert_contextual(tags, '(living_snakes_for_hair:1.5), (writhing_snakes:1.4), (snake_heads_hair:1.5), (medusa_hair:1.4), serpentine_hair', ['medusa', 'gorgon_girl', '1girl'], place='after')
+                tags = insert_contextual(tags, '(living_snakes_for_hair:1.5), (writhing_snakes:1.4), (snake_heads_hair:1.5), (medusa_hair:1.4), serpentine_hair', ['medusa', 'gorgon_girl', 'gorgon', '1girl'], place='after')
                 logs.append('[Medusa Hair Enforced] Injetado "living_snakes_for_hair, writhing_snakes, snake_heads_hair" adjacente a Medusa.')
+            if not any('gorgonlora' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Gorgonlora-IL-000014:0.85>, snake hair, snake_hair, gorgon', ['medusa', 'gorgon_girl', 'gorgon', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Gorgonlora-IL-000014 acoplado adjacente à Gorgon/Medusa.')
 
         # 14.2 Kitsune & Cerberus: Garantia e Preservacao de Multiplas Caudas (multiple_tails)
         if any(k in full_text_lower for k in ['kitsune', 'nine-tailed_fox', 'nine_tails', 'cerberus_girl', 'multiple_tails']):
@@ -1491,8 +1535,8 @@ class PromptReviewer:
                 tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\ARobotGirls_Concept-12:0.8>, robotxl', ['robot_girl', 'android_girl', 'cyborg', '1girl'], place='after')
                 logs.append('[Monster LoRA Loaded] LoRA ARobotGirls_Concept-12 acoplado adjacente à garota robo.')
 
-        # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real (See-Through Body)
-        ghost_signals = {'ghost_girl', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit'}
+        # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real e LoRAs Especialistas (SFW / NSFW)
+        ghost_signals = {'ghost_girl', 'ghost', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit', 'ghost_sex'}
         if any(gs in full_text_lower for gs in ghost_signals):
             opaque_skin_tags = {'pale skin', 'porcelain skin', 'tanned skin', 'dark skin', 'solid skin'}
             purged_skin = []
@@ -1507,8 +1551,23 @@ class PromptReviewer:
             if purged_skin:
                 logs.append(f'[Ghost Body Cleanse] Removidas tags de pele opaca {purged_skin} para garantir transparencia.')
             if not any('see-through_body' in t.lower() for t in tags):
-                tags = insert_contextual(tags, '(see-through_body:1.5), (translucent_body:1.4), (semi-transparent_skin:1.3), ethereal', ['ghost_girl', 'phantom', 'banshee', '1girl'], place='after')
+                tags = insert_contextual(tags, '(see-through_body:1.5), (translucent_body:1.4), (semi-transparent_skin:1.3), ethereal', ['ghost_girl', 'ghost', 'phantom', 'banshee', '1girl'], place='after')
                 logs.append('[Ghost Transparency] Injetado "see-through_body, translucent_body, semi-transparent_skin" adjacente ao fantasma.')
+
+            # Injeção dinâmica de LoRA de Ghost (SFW/Geral vs NSFW Ghost Sex)
+            is_sexual = any(s in full_text_lower for s in [
+                'sex', 'fucking', 'penetration', 'dildo', 'insertion', 'vaginal', 'anal',
+                'blowjob', 'fellatio', 'cunnilingus', 'fingering', 'masturbation', 'paizuri',
+                'creampie', 'cum', 'ghost sex', 'ghost_sex'
+            ])
+            if is_sexual:
+                if not any('ghost_sex' in t.lower() or 'ghost-sfwnsfw' in t.lower() for t in tags):
+                    tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Ghost_sex:0.85>, ghost sex, translucent body', ['ghost_girl', 'ghost', 'phantom', 'banshee', '1girl'], place='after')
+                    logs.append('[Monster LoRA Loaded] LoRA Ghost_sex acoplado dinamicamente para cena de fantasma NSFW.')
+            else:
+                if not any('ghost-sfwnsfw' in t.lower() or 'ghost_sex' in t.lower() for t in tags):
+                    tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Ghost-SFWNSFW-IL.V1.0-000013:0.85>, ghost, translucent body, see-through body', ['ghost_girl', 'ghost', 'phantom', 'banshee', '1girl'], place='after')
+                    logs.append('[Monster LoRA Loaded] LoRA Ghost-SFWNSFW-IL acoplado dinamicamente para personagem fantasma.')
 
         # 16. Moderação de Expressões Faciais Excessivas (love-struck é preservado e permitido!)
         drool_heart_tags = {'drooling', 'drool_bead', 'swirling_pupils', 'heart_shaped_pupils'}
@@ -2251,21 +2310,24 @@ def get_sampleable_loras(refresh=False):
     """Retorna LoRAs adequados para sorteio aleatório, filtrando sliders utilitários, LoRAs dedicados de monster_girls e LoRAs contextuais de NSFW."""
     all_l = get_available_loras(refresh=refresh)
     sampleable = [l for l in all_l if not any(skip in l.lower() for skip in [
-        "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot",
-        "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug"
+        "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
+        "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator"
     ])]
     return sampleable if sampleable else all_l
 
 LORA_CATEGORIES = {
     "contrast": [
         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "shadow-circuit",
-        "between pages", "g0thic"
+        "between pages", "g0thic", "flat_inking", "detr1mental"
     ],
     "style_comic": [
-        "comics_gff", "comiks", "jmoxcomix", "retrocom", "sunstone"
+        "comics_gff", "comiks", "jmoxcomix", "retrocom", "sunstone", "disgea", "mad_tale"
     ],
     "style_cartoon": [
-        "disney", "carto4on", "fantasia"
+        "disney", "carto4on", "fantasia", "cartoon_saloon", "heylittlekhana", "csstyle", "hlk_style"
+    ],
+    "style_pixel": [
+        "n1coduran", "pixel_art", "dungeon_squad"
     ],
     "style_3d": [
         "3d_stylized", "ani2rel", "anime_in_real"
@@ -2274,19 +2336,21 @@ LORA_CATEGORIES = {
         "oil", "latrans", "paulinaapc"
     ],
     "enhancer": [
-        "addmicrodetails", "hyperrealistic", "smooth_booster", "748cm", "realism_enhancer", "stabilizer"
+        "addmicrodetails", "hyperrealistic", "smooth_booster", "748cm", "realism_enhancer", "stabilizer", "raw-color"
     ],
     "lighting": [
         "s1 dramatic lighting", "s1_dram", "lighting"
     ],
     "dynamics": [
-        "posingdynamics", "the_look"
+        "posingdynamics", "the_look", "creative-angle", "rule_of_thirds"
     ],
     "artistic_distinct": [
         "secretofkells", "kells", "sketch", "retro_scifi", "fantasyforge", "0nz9km",
-        "rabbithole", "dungeon_squad", "afkarena", "afkjourney", "nv_kawaiitech",
+        "rabbithole", "afkarena", "afkjourney", "nv_kawaiitech",
         "sarafaber", "wadu", "zynthra", "haiz_ai", "incoth", "chxrrygxg",
-        "ickpot", "jab_illustrious", "jj_v2", "moriimee", "rapscallion", "d5jr09"
+        "ickpot", "jab_illustrious", "jj_v2", "moriimee", "rapscallion", "d5jr09",
+        "bluefley", "cutesexyrobutts", "explore_the_world", "exploreworld", "fantasy_art", "gem",
+        "jonyeld", "muse_style", "vempire"
     ]
 }
 
@@ -2301,7 +2365,7 @@ def categorize_lora(lora_name):
 def sample_harmonized_loras(available_loras, qtd=3):
     """
     Sorteia LoRAs com categorização estética e hierarquia de papéis:
-    - Previne concorrência destrutiva (máx 1 alto contraste, 1 cartoon, 1 comic, 1 3d, 1 pintura a óleo).
+    - Previne concorrência destrutiva (máx 1 alto contraste, 1 cartoon, 1 comic, 1 3d, 1 pintura a óleo, 1 pixel art).
     - Distribui papéis assimétricos com manifestação clara do LoRA principal (0.75 a 0.85).
     - Varia os pesos organicamente a cada sorteio, acabando com valores fixos em 0.50.
     """
@@ -2312,7 +2376,7 @@ def sample_harmonized_loras(available_loras, qtd=3):
     qtd = max(1, min(len(available_loras), qtd))
     chosen_loras = []
     used_categories = set()
-    single_allowed_cats = {"contrast", "style_comic", "style_cartoon", "style_3d", "style_painterly"}
+    single_allowed_cats = {"contrast", "style_comic", "style_cartoon", "style_3d", "style_painterly", "style_pixel"}
 
     for slot_idx in range(qtd):
         # Filtra candidatos respeitando exclusão de categorias concorrentes

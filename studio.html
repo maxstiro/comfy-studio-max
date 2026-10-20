@@ -3603,6 +3603,7 @@
                   ⭐ Guardar
                 </button>
                 <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨</button>
+                <button class="btn-action-icon" title="Excluir da Galeria de Testes" onclick="deleteTesterImage('${img.filename}')" style="color: #f87171;">🗑️</button>
               </div>
             </div>
           `;
@@ -3734,6 +3735,26 @@
         }
       } catch (e) {
         showToast('Erro de conexão ao excluir imagem', 'error');
+      }
+    }
+
+    async function deleteTesterImage(filename) {
+      if (!confirm(`Deseja realmente excluir a imagem de teste '${filename}'?`)) return;
+      try {
+        const res = await fetch('/api/combo_tester/delete_test_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Imagem de teste excluída!', 'info');
+          carregarStatusTester();
+        } else {
+          showToast(data.error || 'Erro ao excluir imagem de teste', 'error');
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao excluir imagem de teste', 'error');
       }
     }
 

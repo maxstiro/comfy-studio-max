@@ -798,7 +798,13 @@ LORA_TRIGGER_REGISTRY = {
     'chokersnap': 'ChokerSnap',
     '6-heldbygiantv2illlllllll_epoch_11': 'HeldByGiantV2ILLLLLLLLL',
     '6-heldbygiant': 'HeldByGiantV2ILLLLLLLLL',
-    'heldbygiant': 'HeldByGiantV2ILLLLLLLLL'
+    'heldbygiant': 'HeldByGiantV2ILLLLLLLLL',
+    '7-il_lesbian_anal_strap-on': 'lestraabed, strap-on, yuri, 2girls',
+    'il_lesbian_anal_strap-on': 'lestraabed, strap-on, yuri, 2girls',
+    'strap-on': 'lestraabed, strap-on, yuri, 2girls',
+    'il_between_pencils_and_semi-realism_style': 'stbedap, semi-realistic, pencil sketch, traditional media',
+    'between_pencils': 'stbedap, semi-realistic, pencil sketch, traditional media',
+    'stbedap': 'stbedap, semi-realistic, pencil sketch, traditional media'
 }
 
 def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_to_end=True, place='after') -> list:
@@ -954,6 +960,12 @@ class PromptReviewer:
             if 'colorful_fish_tail' in ct.lower():
                 ct = re.sub(r'\bcolorful_fish_tail\b', 'single_tail, mermaid_tail, single_fish_tail', ct, flags=re.IGNORECASE)
                 logs.append('[Tail Cleanse] Substituído "colorful_fish_tail" por cauda única para evitar peixes avulsos e duas caudas.')
+            if 'backlit_silhouette' in ct.lower():
+                ct = re.sub(r'\bbacklit_silhouette\b', 'dramatic_backlighting, subtle_rim_light', ct, flags=re.IGNORECASE)
+                logs.append('[Silhouette Softened] Substituído "backlit_silhouette" por iluminação dramática.')
+            elif 'silhouette' in ct.lower():
+                ct = re.sub(r'\b(dark\s+|black\s+|nude\s+|body\s+)?silhouette\b', 'dramatic_rim_light, subtle_backlighting', ct, flags=re.IGNORECASE)
+                logs.append('[Silhouette Softened] Suavizado termo "silhouette" para iluminação de destaque.')
             sanitized_raw.append(ct)
         raw_tags = sanitized_raw
 
@@ -1706,6 +1718,14 @@ class PromptReviewer:
                 tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Saber-toothed:0.85>, saber-tooth, saber-toothed, smilodon tail, countershading', ['saber-toothed', 'saber-tooth', 'smilodon', '1girl'], place='after')
                 logs.append('[Monster LoRA Loaded] LoRA Saber-toothed acoplado adjacente à Tigresa Dente-de-Sabre.')
 
+        # 15.8 Bee Girl: Menina Abelha / Inseto Alado
+        if any(k in full_text_lower for k in ['bee_girl', 'honey_bee', 'bee_wings']):
+            if not any('no_human_ears' in t.lower() for t in tags):
+                tags = insert_contextual(tags, 'no_human_ears', ['bee_girl', 'insect_antennae', '1girl'], place='after')
+            if not any('translucent_wings' in t.lower() or 'bee_wings' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '(bee_wings:1.25), (insect_antennae:1.2), translucent_wings', ['bee_girl', '1girl'], place='after')
+            logs.append('[Monster Trait Enforced] Injetadas asas de abelha e antenas anatômicas para Bee Girl.')
+
         # 16. Moderação de Expressões Faciais Excessivas (love-struck é preservado e permitido!)
         drool_heart_tags = {'drooling', 'drool_bead', 'swirling_pupils', 'heart_shaped_pupils'}
         cleaned_tags = []
@@ -1840,7 +1860,7 @@ class PromptReviewer:
                 tags = insert_contextual(tags, choker_trig, [lora_tag, 'deepthroat', 'blowjob'], place='after')
                 logs.append('[NSFW LoRA 5 Injected] ChokerSnap acoplado contextualmente ao lado do ato oral profundo.')
 
-        # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho)
+        # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho - suporta fairy, goblin_girl e bee_girl)
         giant_match = any(g in full_text_lower for g in [
             'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
             'held_in_hand', 'picked_up_by_giant', 'giant_hand', 'giant_fingers'
@@ -1849,9 +1869,21 @@ class PromptReviewer:
             if not any('6-heldbygiant' in t.lower() for t in tags):
                 lora_tag = '<lora:illustrious\\nsfw\\6-HeldByGiantV2ILLLLLLLLL_epoch_11.safetensors:0.8>'
                 giant_trig = 'HeldByGiantV2ILLLLLLLLL'
-                tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant', '1girl', 'female_focus'], place='after')
+                tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant', 'goblin_girl', 'bee_girl', 'fairy', '1girl', 'female_focus'], place='after')
                 tags = insert_contextual(tags, giant_trig, [lora_tag, 'held_by_giant', 'size_difference'], place='after')
                 logs.append('[NSFW LoRA 6 Injected] HeldByGiantV2ILLLLLLLLL acoplado contextualmente para cena de gigante.')
+
+        # LoRA 7: Lesbian Anal Strap-on (strap-on / pegging)
+        strapon_match = any(st in full_text_lower for st in [
+            'strap-on', 'strapon', 'pegging', 'lestraabed', 'strap_on'
+        ])
+        if strapon_match:
+            if not any('7-il_lesbian' in t.lower() or ('strap-on' in t.lower() and '<lora:' in t.lower()) for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\7-IL_Lesbian_anal_strap-on.safetensors:0.8>'
+                tags = insert_contextual(tags, lora_tag, ['strap-on', 'strapon', 'pegging', 'lestraabed', '2girls', '1girl'], place='after')
+                if not any('lestraabed' in t.lower() for t in tags):
+                    tags = insert_contextual(tags, 'lestraabed, strap-on', [lora_tag, 'strap-on', 'strapon'], place='after')
+                logs.append('[NSFW LoRA 7 Injected] 7-IL_Lesbian_anal_strap-on acoplado contextualmente.')
 
         # 19. Equilíbrio Dinâmico de Pesos e Anti-Burn / Anti-Supersaturação
         # Multiplicadores excessivos (> 1.20) no SDXL / Illustrious degradam e estressam o espaço latente,
@@ -2479,7 +2511,7 @@ def get_sampleable_loras(refresh=False):
         "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
         "draenei", "fsev", "fairy", "orc", "flesh_unit", "gazelle", "pand4w4", "serpent", "navi", "saber",
         "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator",
-        "chokersnap", "heldbygiant", "5-oral"
+        "chokersnap", "heldbygiant", "5-oral", "7-il_lesbian", "strap-on", "strapon", "lestraabed"
     ])]
     return sampleable if sampleable else all_l
 
@@ -2501,7 +2533,7 @@ LORA_CATEGORIES = {
         "3d_stylized", "ani2rel", "anime_in_real"
     ],
     "style_painterly": [
-        "oil", "latrans", "paulinaapc"
+        "oil", "latrans", "paulinaapc", "between_pencils", "stbedap", "pencils"
     ],
     "enhancer": [
         "addmicrodetails", "hyperrealistic", "smooth_booster", "748cm", "realism_enhancer", "stabilizer", "raw-color"
@@ -2844,6 +2876,11 @@ def _friendly_lora_name(lora_str: str) -> str:
     raw = lora_str.replace('\\', '/').split('/')[-1].replace('.safetensors', '').strip()
     
     # 1. Se tem parênteses com nome amigável: ex: 0NZ9KMEEMSGGXKV1KM7G1SVNE0(FANTASYFORGE)
+    if 'between_pencils' in raw.lower() or 'stbedap' in raw.lower():
+        return "Between Pencils & Semi-Realism"
+    if '7-il_lesbian' in raw.lower():
+        return "Lesbian Anal Strap-On"
+
     m = re.search(r'^(.*?)\(([^)]+)\)$', raw)
     if m:
         prefix, inside = m.group(1).strip(), m.group(2).strip()
@@ -2882,7 +2919,8 @@ def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
             "pand4w4_w4kfu_il", "serpent-e40_s1360", "navi_race_avatar_jc_illustrious_leaf1",
             "saber-toothed",
             "1-freaky_dicksv3", "freaky_dicks", "2-masturbation with dildo (illustrious) v1",
-            "3-spreadanusill", "4-buttplugs", "5-oral", "6-heldbygiant"
+            "3-spreadanusill", "4-buttplugs", "5-oral", "6-heldbygiant",
+            "7-il_lesbian_anal_strap-on", "il_lesbian_anal_strap-on"
         }
 
         img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}
@@ -3732,6 +3770,28 @@ async def api_combo_tester_delete_saved_image(request):
             dest.unlink()
 
         return web.json_response({"success": True, "message": f"Imagem guardada {filename} excluída com sucesso."})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/combo_tester/delete_test_image")
+async def api_combo_tester_delete_test_image(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        filename = data.get("filename")
+        if not filename:
+            return web.json_response({"error": "Filename não fornecido"}, status=400)
+
+        # Remove exclusivamente do diretório de testes, sem afetar outras galerias ou pastas guardadas
+        target = TESTER_OUTPUT_DIR / filename
+        if target.exists() and target.is_file():
+            target.unlink()
+
+        tracker = _load_rounds_tracker()
+        if filename in tracker:
+            del tracker[filename]
+            _save_rounds_tracker(tracker)
+
+        return web.json_response({"success": True, "message": f"Imagem de teste {filename} excluída com sucesso."})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

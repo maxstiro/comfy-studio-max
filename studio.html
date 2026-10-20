@@ -836,6 +836,14 @@
       font-weight: 600;
     }
 
+    .prompt-mode-btn.active {
+      background: var(--accent) !important;
+      border-color: var(--accent) !important;
+      color: #fff !important;
+      font-weight: 600;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
+    }
+
     .image-card {
       background: rgba(14, 19, 32, 0.85);
       border: 1px solid var(--card-border);
@@ -1252,6 +1260,9 @@
       <button class="tab-btn active" onclick="switchTab('tab-tester')">
         <span>🧪 Testador de Combos</span>
       </button>
+      <button id="btn-tab-create" class="tab-btn" onclick="switchTab('tab-create')">
+        <span>🎨 Criação Planejada</span>
+      </button>
       <button id="btn-tab-presets" class="tab-btn" onclick="switchTab('tab-presets')">
         <span>✨ Presets Salvos</span>
         <span id="presets-count-badge" style="background: rgba(99, 102, 241, 0.22); border: 1px solid rgba(99, 102, 241, 0.45); color: #c7d2fe; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
@@ -1398,6 +1409,20 @@
               </button>
             </div>
           </div>
+
+          <!-- Card de Logs do ComfyUI (Testador) -->
+          <div class="card" style="margin-top: 16px;">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="log-indicator-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);"></span>
+                <span style="font-size: 0.88rem; font-weight: 700;">📋 Logs do ComfyUI</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearComfyLogs()" style="padding: 2px 8px; font-size: 0.72rem;">Limpar</button>
+            </div>
+            <div class="comfy-logs-terminal" style="background: rgba(5, 7, 10, 0.75); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; height: 140px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.74rem; color: #cbd5e1; line-height: 1.5; display: flex; flex-direction: column; gap: 4px;">
+              <span style="color: #64748b; font-style: italic;">Aguardando execução do ComfyUI...</span>
+            </div>
+          </div>
         </div>
 
         <!-- Coluna Direita: Galeria do Teste & Presets Aprovados -->
@@ -1435,6 +1460,149 @@
                   <tr><td colspan="4" style="color: var(--text-muted);">Carregando presets...</td></tr>
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===================================================================== -->
+    <!-- TAB: CRIAÇÃO PLANEJADA DE IMAGENS -->
+    <!-- ===================================================================== -->
+    <div id="tab-create" class="tab-content">
+      <div class="grid-layout">
+        <!-- Coluna Esquerda: Modelo, LoRAs e Logs -->
+        <div>
+          <div class="card">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>🎯 Modelo & Modificadores</span>
+              <span class="badge" style="background: rgba(99, 102, 241, 0.18); color: #c7d2fe; border: 1px solid rgba(99, 102, 241, 0.35);">Planejado</span>
+            </div>
+
+            <!-- Checkpoint -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px;">
+                <label style="margin: 0;">Checkpoint / Modelo Base</label>
+                <span id="lbl-create-models-stat" style="font-size: 0.74rem; color: #a5b4fc; font-weight: 600;">(Carregando...)</span>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <select id="create-sel-ckpt" style="flex: 1;"></select>
+                <button type="button" class="btn btn-secondary btn-sm" title="Re-escanear pastas no disco" onclick="reescanearModelosEDisco()" style="padding: 0 10px;">🔄</button>
+              </div>
+            </div>
+
+            <!-- Seletor de LoRAs Interativo (LoRA Picker) -->
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                <label style="margin: 0;">LoRAs Selecionados (<span id="create-loras-count">0</span>)</label>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalPickerLorasParaCriacao()" style="font-size: 0.75rem; padding: 3px 8px;">
+                    ➕ LoRA
+                  </button>
+                  <select id="create-sel-import-preset" onchange="importarPresetParaCriacao(this.value)" style="background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: #cbd5e1; border-radius: 6px; font-size: 0.74rem; padding: 3px 6px; max-width: 130px;" title="Importar configuração de LoRAs de um Preset Salvo">
+                    <option value="">✨ Do Preset...</option>
+                  </select>
+                </div>
+              </div>
+              <div id="create-loras-list" style="display: flex; flex-direction: column; gap: 8px; min-height: 48px; max-height: 260px; overflow-y: auto; padding-right: 4px;">
+                <p style="color: var(--text-muted); font-size: 0.82rem; padding: 12px; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px;">
+                  Nenhum LoRA ativo. Clique em "➕ LoRA" ou importe de um preset salvo.
+                </p>
+              </div>
+            </div>
+
+            <!-- Estilo AMOLED -->
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 10px 12px; background: rgba(99, 102, 241, 0.08); border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.25);">
+              <input type="checkbox" id="create-chk-amoled" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent);">
+              <label for="create-chk-amoled" style="margin: 0; cursor: pointer; font-size: 0.85rem; font-weight: 600; color: #e2e8f0; text-transform: none;">
+                🖤 Estilo AMOLED (Fundo Preto Absoluto + Neon & OLED Crush)
+              </label>
+            </div>
+          </div>
+
+          <!-- Card de Logs na Criação Planejada -->
+          <div class="card" style="margin-top: 16px;">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="log-indicator-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block; box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);"></span>
+                <span style="font-size: 0.88rem; font-weight: 700;">📋 Logs do ComfyUI</span>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="clearComfyLogs()" style="padding: 2px 8px; font-size: 0.72rem;">Limpar</button>
+            </div>
+            <div class="comfy-logs-terminal" style="background: rgba(5, 7, 10, 0.75); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; padding: 10px 12px; height: 140px; overflow-y: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.74rem; color: #cbd5e1; line-height: 1.5; display: flex; flex-direction: column; gap: 4px;">
+              <span style="color: #64748b; font-style: italic;">Aguardando execução do ComfyUI...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Coluna Direita: Prompt, Resolução, Execução e Galeria -->
+        <div>
+          <div class="card">
+            <div class="card-title">
+              <span>✍️ Configuração de Prompt & Geração</span>
+            </div>
+
+            <!-- Seletor do Modo de Prompt -->
+            <div class="form-group">
+              <label>Origem do Prompt</label>
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px;">
+                <button type="button" class="btn btn-secondary btn-sm prompt-mode-btn active" id="btn-create-mode-custom" onclick="setCreatePromptMode('custom')">✏️ Custom (Tags)</button>
+                <button type="button" class="btn btn-secondary btn-sm prompt-mode-btn" id="btn-create-mode-hybrid" onclick="setCreatePromptMode('hybrid')">🔀 Híbrido (Wildcard + Tags)</button>
+                <button type="button" class="btn btn-secondary btn-sm prompt-mode-btn" id="btn-create-mode-sfw" onclick="setCreatePromptMode('sfw')">🛡️ Wildcard SFW</button>
+                <button type="button" class="btn btn-secondary btn-sm prompt-mode-btn" id="btn-create-mode-nsfw" onclick="setCreatePromptMode('nsfw')">🔥 Wildcard NSFW</button>
+              </div>
+            </div>
+
+            <!-- Campo de Prompt Customizado -->
+            <div class="form-group" id="group-create-custom-prompt">
+              <label id="lbl-create-custom-prompt">Prompt / Tags Danbooru:</label>
+              <textarea id="create-prompt-text" rows="3" style="width: 100%; background: #0b0c10; border: 1px solid rgba(255,255,255,0.18); color: #fff; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical;" placeholder="Ex: 1girl, draenei, solo, blue skin, horns, warrior, glowing armor, looking at viewer, masterpiece..."></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+              <!-- Resolução -->
+              <div class="form-group">
+                <label>Proporção & Resolução</label>
+                <select id="create-sel-aspect-ratio" style="width: 100%;">
+                  <option value="9:16" selected>📱 9:16 — Celular (832x1344)</option>
+                  <option value="16:9">🖥️ 16:9 — Wallpaper (1344x768)</option>
+                  <option value="1:1">⬜ 1:1 — Quadrado (1024x1024)</option>
+                  <option value="3:4">🖼️ 3:4 — Retrato / Artbook (896x1152)</option>
+                  <option value="4:3">🏞️ 4:3 — Paisagem Clássica (1152x896)</option>
+                  <option value="2:3">📸 2:3 — Fotografia Retrato (832x1216)</option>
+                  <option value="3:2">🌅 3:2 — Fotografia Paisagem (1216x832)</option>
+                  <option value="4:5">📱 4:5 — Social Feed (896x1088)</option>
+                  <option value="21:9">🎬 21:9 — Cinema Ultrawide (1536x640)</option>
+                  <option value="random">🎲 Aleatória por Imagem</option>
+                </select>
+              </div>
+
+              <!-- Quantidade de Imagens -->
+              <div class="form-group">
+                <label>Quantidade</label>
+                <select id="create-sel-count" style="width: 100%;">
+                  <option value="1">1 Imagem</option>
+                  <option value="2" selected>2 Imagens</option>
+                  <option value="4">4 Imagens</option>
+                  <option value="6">6 Imagens</option>
+                </select>
+              </div>
+            </div>
+
+            <button id="btn-execute-create" class="btn btn-primary btn-block" style="padding: 12px; font-size: 1rem;" onclick="executarCriacaoPlanejada()">
+              <span>🚀 Gerar Imagens Planejadas</span>
+            </button>
+          </div>
+
+          <!-- Galeria de Imagens Criadas -->
+          <div class="card" style="margin-top: 16px;">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <span>Galeria da Criação Planejada</span>
+              <button class="btn btn-secondary btn-sm" onclick="carregarGaleriaCriacao()">🔄 Atualizar</button>
+            </div>
+            <div id="create-images-grid" class="image-grid">
+              <p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem criada nesta sessão ainda.</p>
             </div>
           </div>
         </div>
@@ -2554,7 +2722,18 @@
       clientId: null,
       activePromptId: null,
       batchTotal: 1,
-      batchCompleted: 0
+      batchCompleted: 0,
+      creationConfig: {
+        checkpoint: '',
+        loras: [],
+        promptMode: 'custom',
+        customPrompt: '',
+        ratio: '9:16',
+        amoled: false,
+        count: 2
+      },
+      creationGallery: [],
+      loraLibraryMode: 'tester'
     };
 
     function showToast(msg, type = 'info') {
@@ -2582,6 +2761,7 @@
       if (tabId === 'tab-tester') carregarStatusTester();
       if (tabId === 'tab-presets') { carregarStatusTester(); renderPresetsCards(state.approvedCombos); }
       if (tabId === 'tab-saved') carregarStatusTester();
+      if (tabId === 'tab-create') initCreateTab();
       if (tabId === 'tab-refine') carregarGaleriaRefinada();
       if (tabId === 'tab-cartoon') carregarGaleriaCartoon();
       if (tabId === 'tab-faceswap') carregarGaleriaFaceSwap();
@@ -2668,6 +2848,7 @@
       else if (task === 'pixelart') carregarGaleriaPixel();
       else if (task === 'inpaint') carregarGaleriaInpaint();
       else if (task === 'combo_tester') carregarStatusTester();
+      else if (task === 'creation') carregarGaleriaCriacao();
     }
 
     function finalizarExecucaoAtiva(sucesso = true) {
@@ -2686,6 +2867,16 @@
       if (testerWatcherInterval) {
         clearInterval(testerWatcherInterval);
         testerWatcherInterval = null;
+      }
+
+      const createBtn = document.getElementById('btn-execute-create');
+      if (createBtn) {
+        createBtn.disabled = false;
+        createBtn.innerHTML = '<span>🚀 Gerar Imagens Planejadas</span>';
+      }
+      if (creationWatcherInterval) {
+        clearInterval(creationWatcherInterval);
+        creationWatcherInterval = null;
       }
 
       const refineBtn = document.getElementById('btn-execute-refine');
@@ -2779,6 +2970,48 @@
       }
     }
 
+    // =========================================================================
+    // GERENCIADOR DE LOGS EM TEMPO REAL DO COMFYUI
+    // =========================================================================
+    let comfyLogsHistory = [];
+
+    function addComfyLog(msg, type = 'info') {
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0];
+      comfyLogsHistory.push({ time: timeStr, msg: msg, type: type });
+      if (comfyLogsHistory.length > 60) comfyLogsHistory.shift();
+      renderComfyLogs();
+    }
+
+    function clearComfyLogs() {
+      comfyLogsHistory = [];
+      renderComfyLogs();
+    }
+
+    function renderComfyLogs() {
+      const terminals = document.querySelectorAll('.comfy-logs-terminal');
+      if (!terminals || terminals.length === 0) return;
+
+      let html = '';
+      if (comfyLogsHistory.length === 0) {
+        html = '<span style="color: #64748b; font-style: italic;">Aguardando execução do ComfyUI...</span>';
+      } else {
+        html = comfyLogsHistory.map(entry => {
+          let color = '#94a3b8';
+          if (entry.type === 'success') color = '#34d399';
+          else if (entry.type === 'error') color = '#f87171';
+          else if (entry.type === 'warning') color = '#fbbf24';
+          else if (entry.type === 'step') color = '#60a5fa';
+          return `<div style="display: flex; gap: 8px; word-break: break-word;"><span style="color: #475569; font-size: 0.68rem; user-select: none;">[${entry.time}]</span><span style="color: ${color}; flex: 1;">${entry.msg}</span></div>`;
+        }).join('');
+      }
+
+      terminals.forEach(term => {
+        term.innerHTML = html;
+        term.scrollTop = term.scrollHeight;
+      });
+    }
+
     function handleComfyWsMessage(msg) {
       if (!msg || !msg.type) return;
 
@@ -2799,11 +3032,16 @@
             ? `Imagem ${completedBatches + 1} de ${totalBatches} • Passo ${d.value} de ${d.max}`
             : `Amostrando: Passo ${d.value} de ${d.max}`;
           updateProgressUI(globalPct, stepText, 'KSampler');
+
+          if (d.value === 1 || d.value === d.max || d.value % 5 === 0) {
+            addComfyLog(`⚡ KSampler: passo ${d.value}/${d.max} (${Math.round((d.value/d.max)*100)}%)`, 'step');
+          }
         }
       } else if (t === 'executed') {
-        // Quando o nó 99 (SaveImage) grava a imagem, atualiza galeria imediatamente!
-        if (d.node === '99' && state.isGenerating) {
+        // Quando o nó 99 ou 46 (SaveImage) grava a imagem, atualiza galeria imediatamente!
+        if ((d.node === '99' || d.node === '46') && state.isGenerating) {
           recarregarGaleriaAtiva();
+          addComfyLog(`💾 Imagem gravada no disco (nó #${d.node})`, 'success');
         }
       } else if (t === 'executing') {
         const nodeId = d.node;
@@ -2816,6 +3054,7 @@
             if (state.batchCompleted >= totalBatches) {
               finalizarExecucaoAtiva(true);
               showToast(`Lote completo! (${state.batchCompleted}/${totalBatches} geradas)`, 'success');
+              addComfyLog(`🎉 Lote concluído! (${state.batchCompleted}/${totalBatches} imagens geradas)`, 'success');
             } else {
               const currentPct = Math.round((state.batchCompleted / totalBatches) * 100);
               updateProgressUI(
@@ -2824,6 +3063,7 @@
                 `Lote ${state.batchCompleted}/${totalBatches}`
               );
               showToast(`Imagem ${state.batchCompleted} de ${totalBatches} pronta!`, 'info');
+              addComfyLog(`✅ Imagem ${state.batchCompleted}/${totalBatches} salva! Continuando lote...`, 'info');
             }
           }
         } else {
@@ -2865,20 +3105,33 @@
             else if (nodeId === '3') label = '⚡ KSampler (Amostrando Imagem de Teste...)';
             else if (nodeId === '8') label = '🔄 Decodificando VAE';
             else if (nodeId === '99') label = '💾 Salvando Imagem de Teste';
+          } else if (state.activeTaskType === 'creation') {
+            if (nodeId === '9' || nodeId === '4') label = '📦 Carregando Checkpoint Base';
+            else if (nodeId === '47' || nodeId === '10' || nodeId === '11') label = '⚡ Conectando LoRAs Selecionados';
+            else if (nodeId === '41' || nodeId === '89' || nodeId === '6' || nodeId === '7') label = '🧠 Processando Prompts & Wildcards';
+            else if (nodeId === '3') label = '⚡ KSampler (Amostrando Criação Planejada...)';
+            else if (nodeId === '8') label = '🔄 Decodificando VAE';
+            else if (nodeId === '95') label = '🖤 Processando Efeito AMOLED';
+            else if (nodeId === '99' || nodeId === '46') label = '💾 Gravando Imagem Criada';
           }
           updateProgressUI(null, label, `Nó ${nodeId}`);
+          addComfyLog(`⚙️ [Nó #${nodeId}] ${label}`, 'info');
         }
       } else if (t === 'execution_start') {
         updateProgressUI(5, 'Iniciando pipeline de execução...', 'Executando');
+        addComfyLog(`🚀 Pipeline de execução iniciado`, 'info');
       } else if (t === 'execution_success') {
         if (state.isGenerating && (state.batchCompleted || 0) >= Math.max(1, state.batchTotal || 1)) {
           finalizarExecucaoAtiva(true);
           showToast('Processamento concluído!', 'success');
         }
+        addComfyLog(`🎉 Execução finalizada no ComfyUI`, 'success');
       } else if (t === 'execution_error') {
         if (state.isGenerating) {
           finalizarExecucaoAtiva(false);
-          showToast('Erro na execução do nó: ' + (d.exception_message || 'Falha no ComfyUI'), 'error');
+          const errText = d.exception_message || 'Falha no ComfyUI';
+          showToast('Erro na execução do nó: ' + errText, 'error');
+          addComfyLog(`❌ Erro no nó ${d.node_id || ''}: ${errText}`, 'error');
         }
       }
     }
@@ -2922,6 +3175,18 @@
         }
       }
 
+      // Atualiza dropdown create-sel-ckpt na Criação Planejada
+      const createSelCkpt = document.getElementById('create-sel-ckpt');
+      if (createSelCkpt) {
+        const curCreate = createSelCkpt.value;
+        createSelCkpt.innerHTML = state.checkpoints.map(c => `<option value="${c}">${c.replace(/\\/g, '/')}</option>`).join('');
+        if (curCreate && state.checkpoints.includes(curCreate)) {
+          createSelCkpt.value = curCreate;
+        } else if (state.creationConfig && state.creationConfig.checkpoint && state.checkpoints.includes(state.creationConfig.checkpoint)) {
+          createSelCkpt.value = state.creationConfig.checkpoint;
+        }
+      }
+
       // Atualiza dropdown de adicionar LoRA da biblioteca no modal de presets
       const addLoraSelect = document.getElementById('edit-preset-add-lora-select');
       if (addLoraSelect) {
@@ -2935,6 +3200,10 @@
       const lblStat = document.getElementById('lbl-models-stat');
       if (lblStat) {
         lblStat.textContent = `(${state.checkpoints.length} ckpts • ${state.availableLoras.length} LoRAs)`;
+      }
+      const lblCreateStat = document.getElementById('lbl-create-models-stat');
+      if (lblCreateStat) {
+        lblCreateStat.textContent = `(${state.checkpoints.length} ckpts • ${state.availableLoras.length} LoRAs)`;
       }
       const badgeCount = document.getElementById('lbl-loras-count-badge');
       if (badgeCount) {
@@ -3151,7 +3420,8 @@
       }
     }
 
-    function abrirModalBibliotecaLoras() {
+    function abrirModalBibliotecaLoras(mode = 'tester') {
+      state.loraLibraryMode = mode;
       const modal = document.getElementById('modal-loras-library');
       if (!modal) return;
       modal.classList.add('open');
@@ -3182,10 +3452,27 @@
         return;
       }
 
+      const isCreateMode = state.loraLibraryMode === 'create';
+
       listEl.innerHTML = filtered.map(l => {
-        const cleanName = l.split('\\\\').pop().split('/').pop().replace('.safetensors', '');
-        const folder = l.includes('\\\\') || l.includes('/') ? l.substring(0, Math.max(l.lastIndexOf('\\\\'), l.lastIndexOf('/'))) : '';
-        const isCurrentActive = state.currentTest && (state.currentTest.loras || []).some(x => x.lora === l);
+        const cleanName = l.split('\\').pop().split('/').pop().replace('.safetensors', '');
+        const folder = l.includes('\\') || l.includes('/') ? l.substring(0, Math.max(l.lastIndexOf('\\'), l.lastIndexOf('/'))) : '';
+
+        let isCurrentActive = false;
+        let actionBtnHtml = '';
+
+        if (isCreateMode) {
+          isCurrentActive = (state.creationConfig?.loras || []).some(x => x.lora === l);
+          actionBtnHtml = isCurrentActive
+            ? '<span style="font-size: 0.74rem; color: #34d399; font-weight: 600; padding: 2px 6px;">Adicionado</span>'
+            : `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="adicionarLoraACriacao('${l.replace(/\\/g, '\\\\')}')">➕ Adicionar</button>`;
+        } else {
+          isCurrentActive = state.currentTest && (state.currentTest.loras || []).some(x => x.lora === l);
+          actionBtnHtml = isCurrentActive
+            ? '<span style="font-size: 0.74rem; color: #34d399; font-weight: 600; padding: 2px 6px;">Ativo no Teste</span>'
+            : `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="adicionarLoraAoTesteAtivo('${l.replace(/\\/g, '\\\\')}')">➕ Usar no Teste</button>`;
+        }
+
         return `
           <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 6px; padding: 6px 10px;">
             <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; padding-right: 8px;">
@@ -3193,31 +3480,35 @@
               ${folder ? `<span style="font-size: 0.72rem; color: #64748b; margin-left: 6px;">[${folder}]</span>` : ''}
             </div>
             <div>
-              ${isCurrentActive ? 
-                '<span style="font-size: 0.74rem; color: #34d399; font-weight: 600; padding: 2px 6px;">Ativo no Teste</span>' : 
-                `<button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 3px 8px;" onclick="adicionarLoraAoTesteAtivo('${l.replace(/\\\\/g, '\\\\\\\\')}')">➕ Usar no Teste</button>`
-              }
+              ${actionBtnHtml}
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function abrirModalZoomItem(filename, isSaved = false) {
+    function abrirModalZoomItem(filename, isSaved = false, source = 'tester') {
       let img = null;
-      if (isSaved) {
+      if (source === 'creation') {
+        img = (state.creationGallery || []).find(x => x.filename === filename);
+      } else if (isSaved) {
         img = (state.savedGallery || []).find(x => x.filename === filename);
       } else {
         img = (state.images || []).find(x => x.filename === filename);
       }
       if (!img) {
-        img = (state.images || []).find(x => x.filename === filename) || (state.savedGallery || []).find(x => x.filename === filename);
+        img = (state.creationGallery || []).find(x => x.filename === filename) ||
+              (state.images || []).find(x => x.filename === filename) ||
+              (state.savedGallery || []).find(x => x.filename === filename);
       }
       const ts = img?.timestamp || Date.now();
-      const baseurl = img ? img.url : (isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`);
+      let baseurl = img ? img.url : (isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`);
+      if (source === 'creation' && !img) {
+        baseurl = `/creation_images/${filename}`;
+      }
       const freshUrl = `${baseurl}?t=${ts}`;
       if (img) {
-        abrirModalZoom(freshUrl, img.filename, img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '', isSaved);
+        abrirModalZoom(freshUrl, img.filename, img.positive_prompt || img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '', isSaved);
       } else {
         abrirModalZoom(freshUrl, filename, '', '', '', [], '', isSaved);
       }
@@ -3432,6 +3723,16 @@
 
       // 2. Renderizar cards na nova aba de Presets
       renderPresetsCards(state.approvedCombos);
+
+      // 2.1 Atualizar select de importação na aba de Criação Planejada
+      const selImport = document.getElementById('create-sel-import-preset');
+      if (selImport) {
+        let opts = '<option value="">✨ Do Preset...</option>';
+        state.approvedCombos.forEach(p => {
+          opts += `<option value="${p.id}">${p.name || 'Preset ' + p.id}</option>`;
+        });
+        selImport.innerHTML = opts;
+      }
 
       // 3. Atualizar a tabela de presets do testador
       const tbody = document.getElementById('tbl-approved-combos');
@@ -4264,6 +4565,413 @@
         }
       }
       metaDetails.innerHTML = detailsHtml;
+    }
+
+    // =========================================================================
+    // ABA: CRIAÇÃO PLANEJADA DE IMAGENS
+    // =========================================================================
+    let creationWatcherInterval = null;
+    let creationInitialFilenames = new Set();
+
+    function initCreateTab() {
+      state.creationConfig = state.creationConfig || {
+        checkpoint: '',
+        loras: [],
+        promptMode: 'custom',
+        customPrompt: '',
+        ratio: '9:16',
+        amoled: false,
+        count: 2
+      };
+
+      // Popula select de checkpoints
+      const selCkpt = document.getElementById('create-sel-ckpt');
+      if (selCkpt && selCkpt.options.length <= 1 && (state.checkpoints || []).length > 0) {
+        selCkpt.innerHTML = state.checkpoints.map(c => `<option value="${c}">${c.replace(/\\/g, '/')}</option>`).join('');
+        if (state.creationConfig.checkpoint && state.checkpoints.includes(state.creationConfig.checkpoint)) {
+          selCkpt.value = state.creationConfig.checkpoint;
+        }
+      }
+
+      // Popula select de presets
+      const selImport = document.getElementById('create-sel-import-preset');
+      if (selImport && selImport.options.length <= 1 && (state.approvedCombos || []).length > 0) {
+        let opts = '<option value="">✨ Do Preset...</option>';
+        state.approvedCombos.forEach(p => {
+          opts += `<option value="${p.id}">${p.name || 'Preset ' + p.id}</option>`;
+        });
+        selImport.innerHTML = opts;
+      }
+
+      renderCreateLorasList();
+      carregarGaleriaCriacao();
+    }
+
+    function setCreatePromptMode(mode) {
+      state.creationConfig = state.creationConfig || {};
+      state.creationConfig.promptMode = mode;
+
+      document.querySelectorAll('.prompt-mode-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById('btn-create-mode-' + mode);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const promptGroup = document.getElementById('group-create-custom-prompt');
+      const lblPrompt = document.getElementById('lbl-create-custom-prompt');
+      const txtPrompt = document.getElementById('create-prompt-text');
+
+      if (mode === 'custom') {
+        promptGroup.style.display = 'block';
+        lblPrompt.innerHTML = '✏️ Prompt / Tags Danbooru Personalizadas:';
+        txtPrompt.placeholder = 'Ex: 1girl, solo, warrior, blue skin, glowing eyes, cinematic lighting, masterpiece...';
+      } else if (mode === 'hybrid') {
+        promptGroup.style.display = 'block';
+        lblPrompt.innerHTML = '🔀 Tags Extras (Adicionadas ao sorteio Wildcard):';
+        txtPrompt.placeholder = 'Ex: holding sword, looking back, dynamic angle, dramatic shadows...';
+      } else if (mode === 'sfw') {
+        promptGroup.style.display = 'none';
+      } else if (mode === 'nsfw') {
+        promptGroup.style.display = 'none';
+      }
+    }
+
+    function abrirModalPickerLorasParaCriacao() {
+      abrirModalBibliotecaLoras('create');
+    }
+
+    function adicionarLoraACriacao(loraPath) {
+      if (!state.creationConfig) state.creationConfig = {};
+      if (!state.creationConfig.loras) state.creationConfig.loras = [];
+
+      const exists = state.creationConfig.loras.some(x => x.lora === loraPath);
+      if (exists) {
+        showToast('Este LoRA já está adicionado.', 'info');
+        return;
+      }
+
+      state.creationConfig.loras.push({
+        lora: loraPath,
+        strength: 0.85,
+        strength_clip: 0.85
+      });
+
+      renderCreateLorasList();
+      renderBibliotecaLorasFiltrada();
+      showToast('LoRA adicionado à criação!', 'success');
+    }
+
+    function removerLoraCriacao(idx) {
+      if (!state.creationConfig || !state.creationConfig.loras) return;
+      if (idx >= 0 && idx < state.creationConfig.loras.length) {
+        state.creationConfig.loras.splice(idx, 1);
+        renderCreateLorasList();
+        renderBibliotecaLorasFiltrada();
+      }
+    }
+
+    function atualizarPesoLoraCriacao(idx, field, val) {
+      if (!state.creationConfig || !state.creationConfig.loras) return;
+      const num = parseFloat(val);
+      if (idx >= 0 && idx < state.creationConfig.loras.length) {
+        state.creationConfig.loras[idx][field] = num;
+        const valSpan = document.getElementById(`create-lora-val-${idx}-${field}`);
+        if (valSpan) valSpan.innerText = num.toFixed(2);
+      }
+    }
+
+    function renderCreateLorasList() {
+      const container = document.getElementById('create-loras-list');
+      const countEl = document.getElementById('create-loras-count');
+      const loras = state.creationConfig?.loras || [];
+
+      if (countEl) countEl.innerText = loras.length;
+      if (!container) return;
+
+      if (loras.length === 0) {
+        container.innerHTML = `
+          <p style="color: var(--text-muted); font-size: 0.82rem; padding: 12px; text-align: center; border: 1px dashed rgba(255,255,255,0.1); border-radius: 8px;">
+            Nenhum LoRA ativo. Clique em "➕ LoRA" ou importe de um preset salvo.
+          </p>
+        `;
+        return;
+      }
+
+      container.innerHTML = loras.map((item, idx) => {
+        const cleanName = item.lora.split(/[\\/]/).pop().replace('.safetensors', '');
+        const folder = item.lora.includes('\\') || item.lora.includes('/') ? item.lora.substring(0, Math.max(item.lora.lastIndexOf('\\'), item.lora.lastIndexOf('/'))) : '';
+        const strModel = item.strength !== undefined ? item.strength : 0.85;
+        const strClip = item.strength_clip !== undefined ? item.strength_clip : 0.85;
+
+        return `
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; padding-right: 6px;">
+                <span style="font-size: 0.82rem; font-weight: 600; color: #f1f5f9;" title="${item.lora}">${cleanName}</span>
+                ${folder ? `<span style="font-size: 0.7rem; color: #64748b; margin-left: 4px;">[${folder}]</span>` : ''}
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="removerLoraCriacao(${idx})" style="padding: 2px 6px; font-size: 0.72rem; color: #ef4444;" title="Remover LoRA">🗑️</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.72rem; color: #94a3b8;">
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                  <span>Model:</span>
+                  <span id="create-lora-val-${idx}-strength" style="color: #c7d2fe; font-weight: 600;">${Number(strModel).toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.1" max="1.5" step="0.05" value="${strModel}" oninput="atualizarPesoLoraCriacao(${idx}, 'strength', this.value)" style="width: 100%; cursor: pointer;">
+              </div>
+              <div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                  <span>CLIP:</span>
+                  <span id="create-lora-val-${idx}-strength_clip" style="color: #c7d2fe; font-weight: 600;">${Number(strClip).toFixed(2)}</span>
+                </div>
+                <input type="range" min="0.1" max="1.5" step="0.05" value="${strClip}" oninput="atualizarPesoLoraCriacao(${idx}, 'strength_clip', this.value)" style="width: 100%; cursor: pointer;">
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function importarPresetParaCriacao(presetId) {
+      if (!presetId) return;
+      const preset = (state.approvedCombos || []).find(p => String(p.id) === String(presetId));
+      if (!preset) {
+        showToast('Preset não encontrado.', 'warning');
+        return;
+      }
+
+      if (preset.checkpoint) {
+        const selCkpt = document.getElementById('create-sel-ckpt');
+        if (selCkpt) selCkpt.value = preset.checkpoint;
+      }
+
+      state.creationConfig = state.creationConfig || {};
+      state.creationConfig.loras = (preset.loras || []).map(l => ({
+        lora: l.lora,
+        strength: l.strength_model !== undefined ? l.strength_model : (l.strength !== undefined ? l.strength : 0.85),
+        strength_clip: l.strength_clip !== undefined ? l.strength_clip : 0.85
+      }));
+
+      renderCreateLorasList();
+      showToast(`LoRAs do preset "${preset.name || preset.id}" importados!`, 'success');
+
+      const selImport = document.getElementById('create-sel-import-preset');
+      if (selImport) selImport.value = '';
+    }
+
+    async function executarCriacaoPlanejada() {
+      if (!isComfyUIOnline) {
+        showToast('⚡ O motor ComfyUI está desligado. Clique em "⚡ Ligar ComfyUI" no topo para gerar!', 'warning');
+        return;
+      }
+
+      const ckpt = document.getElementById('create-sel-ckpt')?.value || '';
+      if (!ckpt) {
+        showToast('Selecione um Checkpoint base para gerar a imagem.', 'warning');
+        return;
+      }
+
+      const promptMode = state.creationConfig?.promptMode || 'custom';
+      const promptText = (document.getElementById('create-prompt-text')?.value || '').trim();
+      const ratio = document.getElementById('create-sel-aspect-ratio')?.value || '9:16';
+      const count = parseInt(document.getElementById('create-sel-count')?.value || '2', 10);
+      const amoled = document.getElementById('create-chk-amoled')?.checked || false;
+      const loras = state.creationConfig?.loras || [];
+
+      if ((promptMode === 'custom' || promptMode === 'hybrid') && !promptText) {
+        showToast('Digite as tags ou prompt desejado no campo de texto.', 'warning');
+        return;
+      }
+
+      const clientId = getOrCreateClientId();
+
+      try {
+        state.isGenerating = true;
+        state.activeTaskType = 'creation';
+        state.batchTotal = count;
+        state.batchCompleted = 0;
+        updateProgressUI(5, `Iniciando criação planejada (${count} imagens)...`, 'Preparando');
+
+        const btn = document.getElementById('btn-execute-create');
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = `<span>⏳ Enviando ao ComfyUI (${count} imagens)...</span>`;
+        }
+
+        const ckptName = ckpt.split(/[\\/]/).pop();
+        addComfyLog(`🎨 Nova Criação Planejada: ${count} img | ckpt: ${ckptName} | LoRAs: ${loras.length} | Modo: ${promptMode.toUpperCase()}${amoled ? ' | AMOLED' : ''}`, 'info');
+
+        const res = await fetch('/api/creation/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checkpoint: ckpt,
+            loras: loras,
+            prompt_mode: promptMode,
+            custom_prompt: promptText,
+            aspect_ratio: ratio,
+            amoled: amoled,
+            count: count,
+            client_id: clientId
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          state.isGenerating = false;
+          finalizarExecucaoAtiva(false);
+          const err = errData.error || `Erro HTTP ${res.status}`;
+          showToast(err, 'error');
+          addComfyLog(`❌ Falha ao enfileirar: ${err}`, 'error');
+          return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Lote enfileirado! Acompanhando geração...`, 'success');
+          addComfyLog(`🚀 ${count} imagens enfileiradas com sucesso no ComfyUI`, 'success');
+          startCreationAutoUpdate(count);
+        } else {
+          state.isGenerating = false;
+          finalizarExecucaoAtiva(false);
+          showToast(data.error || 'Erro ao enfileirar criação', 'error');
+        }
+      } catch (e) {
+        state.isGenerating = false;
+        finalizarExecucaoAtiva(false);
+        showToast('Erro de conexão ao gerar imagens: ' + e.message, 'error');
+        addComfyLog(`❌ Erro de rede: ${e.message}`, 'error');
+      }
+    }
+
+    function startCreationAutoUpdate(targetCount) {
+      if (creationWatcherInterval) clearInterval(creationWatcherInterval);
+
+      const btn = document.getElementById('btn-execute-create');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳ Gerando criação planejada (${targetCount} imagens)...</span>`;
+      }
+
+      const currentCards = document.querySelectorAll('#create-images-grid .image-card');
+      creationInitialFilenames = new Set(Array.from(currentCards).map(c => c.getAttribute('data-filename')).filter(Boolean));
+
+      let pollAttempts = 0;
+      const maxAttempts = 300;
+
+      creationWatcherInterval = setInterval(async () => {
+        pollAttempts++;
+        try {
+          const res = await fetch('/api/creation/gallery?t=' + Date.now());
+          const data = await res.json();
+          if (data.success) {
+            state.creationGallery = data.images || [];
+            renderCreationImages(state.creationGallery);
+
+            const newCount = state.creationGallery.filter(img => !creationInitialFilenames.has(img.filename)).length;
+            if (btn) {
+              btn.innerHTML = `<span>⏳ Gerando... (${newCount}/${targetCount} prontas)</span>`;
+            }
+
+            if (newCount >= targetCount || pollAttempts >= maxAttempts) {
+              clearInterval(creationWatcherInterval);
+              creationWatcherInterval = null;
+              if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `<span>🚀 Gerar Imagens Planejadas</span>`;
+              }
+              if (newCount >= targetCount) {
+                showToast(`Criação planejada concluída! ${newCount} imagens salvas.`, 'success');
+                addComfyLog(`🎉 Criação planejada concluída (${newCount} imagens)`, 'success');
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Polling creation:', e);
+        }
+      }, 2000);
+    }
+
+    async function carregarGaleriaCriacao() {
+      try {
+        const res = await fetch('/api/creation/gallery?t=' + Date.now());
+        const data = await res.json();
+        if (data.success) {
+          state.creationGallery = data.images || [];
+          renderCreationImages(state.creationGallery);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar galeria da criação:', e);
+      }
+    }
+
+    function renderCreationImages(images) {
+      const grid = document.getElementById('create-images-grid');
+      if (!grid) return;
+      if (!images || images.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem; padding: 20px; text-align: center;">Nenhuma imagem criada nesta sessão ainda.</p>';
+        return;
+      }
+
+      grid.innerHTML = images.map(img => {
+        const ckptShort = (img.checkpoint || '').split(/[\\/]/).pop().replace('.safetensors', '');
+        const lorasCount = (img.loras || []).length;
+        const resLabel = img.width && img.height ? `${img.width}x${img.height}` : '';
+        const promptEscaped = (img.positive_prompt || '').replace(/"/g, '&quot;');
+
+        return `
+          <div class="image-card" data-filename="${img.filename}">
+            <div style="position: relative; overflow: hidden; cursor: pointer; aspect-ratio: ${img.width && img.height ? img.width + '/' + img.height : '9/16'}; max-height: 420px; background: #000; display: flex; align-items: center; justify-content: center;" onclick="abrirModalZoomItem('${img.filename}', false, 'creation')">
+              <img src="${img.url}" loading="lazy" style="width: 100%; height: 100%; object-fit: contain; transition: transform 0.3s ease;">
+              <div style="position: absolute; top: 8px; right: 8px; display: flex; gap: 4px;">
+                <span class="badge" style="background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); color: #c7d2fe; border: 1px solid rgba(255,255,255,0.15); font-size: 0.7rem;">${resLabel}</span>
+              </div>
+            </div>
+            <div style="padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #94a3b8;">
+                <span title="${img.checkpoint || ''}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px; font-weight: 600; color: #f1f5f9;">
+                  📦 ${ckptShort || 'Modelo'}
+                </span>
+                <span>✨ ${lorasCount} LoRAs</span>
+              </div>
+              ${img.positive_prompt ? `
+                <div style="font-size: 0.72rem; color: #94a3b8; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3;" title="${promptEscaped}">
+                  ${promptEscaped}
+                </div>
+              ` : ''}
+              <div style="display: flex; gap: 6px; margin-top: 4px;">
+                <button type="button" class="btn btn-secondary btn-sm" style="flex: 1; font-size: 0.75rem; padding: 4px 6px;" onclick="salvarImagemCriacao('${img.filename}')" title="Guardar na Galeria de Guardadas">
+                  ⭐ Guardar
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="abrirModalZoomItem('${img.filename}', false, 'creation')" title="Zoom">
+                  🔍
+                </button>
+                <a href="${img.url}" download="${img.filename}" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px; text-decoration: none; display: inline-flex; align-items: center;" title="Download">
+                  📥
+                </a>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function salvarImagemCriacao(filename) {
+      try {
+        const res = await fetch('/api/creation/save_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Imagem guardada com sucesso!', 'success');
+          carregarStatusTester();
+        } else {
+          showToast(data.error || 'Erro ao guardar imagem', 'error');
+        }
+      } catch (e) {
+        showToast('Erro ao guardar imagem: ' + e.message, 'error');
+      }
     }
 
     // =========================================================================

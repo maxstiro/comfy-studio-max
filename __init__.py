@@ -312,6 +312,9 @@ async def get_ha_view(request):
         <a id="btn-tester" class="btn-top" href="/studio#tab-tester" target="_blank" rel="noopener noreferrer" title="Testador de Combinações e Presets de LoRAs">
           🧪 Testador
         </a>
+        <a id="btn-create" class="btn-top" href="/studio#tab-create" target="_blank" rel="noopener noreferrer" title="Criação Planejada de Imagens">
+          🎨 Criar
+        </a>
         <a id="btn-saved" class="btn-top" href="/studio#tab-saved" target="_blank" rel="noopener noreferrer" title="Galeria de Imagens Guardadas">
           ⭐ Guardadas
         </a>
@@ -367,6 +370,7 @@ async def get_ha_view(request):
 
     document.getElementById('btn-open').href = `${baseUrl}`;
     document.getElementById('btn-tester').href = `${baseUrl}/studio#tab-tester`;
+    document.getElementById('btn-create').href = `${baseUrl}/studio#tab-create`;
     document.getElementById('btn-saved').href = `${baseUrl}/studio#tab-saved`;
     document.getElementById('btn-refine').href = `${baseUrl}/studio#tab-refine`;
     document.getElementById('btn-cartoon').href = `${baseUrl}/studio#tab-cartoon`;
@@ -2212,6 +2216,7 @@ APPROVED_COMBOS_FILE = COMFY_ROOT / "user" / "default" / "approved_combos.json"
 CURRENT_TEST_FILE = COMFY_ROOT / "user" / "default" / "current_test_combo.json"
 TESTER_OUTPUT_DIR = COMFY_ROOT / "output" / "tester"
 TESTER_SAVED_DIR = COMFY_ROOT / "output" / "tester_saved"
+CREATION_OUTPUT_DIR = COMFY_ROOT / "output" / "creation"
 SAVED_IMAGES_FILE = COMFY_ROOT / "user" / "default" / "saved_tester_images.json"
 
 def _load_saved_images_list():
@@ -2715,6 +2720,22 @@ async def get_tester_image(request):
         if not target.exists() or not target.is_file():
             return web.Response(status=404, text="Imagem não encontrada")
         # Se o arquivo foi criado a menos de 2 segundos e tem menos de 30KB, esperar concluir gravação
+        st = target.stat()
+        if st.st_size < 30000 and (time.time() - st.st_mtime) < 2.0:
+            await asyncio.sleep(0.4)
+        resp = web.FileResponse(target)
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+    except Exception as e:
+        return web.Response(status=500, text=str(e))
+
+@server.PromptServer.instance.routes.get("/creation_images/{filename}")
+async def get_creation_image(request):
+    try:
+        filename = request.match_info["filename"]
+        target = CREATION_OUTPUT_DIR / filename
+        if not target.exists() or not target.is_file():
+            return web.Response(status=404, text="Imagem de criação não encontrada")
         st = target.stat()
         if st.st_size < 30000 and (time.time() - st.st_mtime) < 2.0:
             await asyncio.sleep(0.4)
@@ -3882,7 +3903,7 @@ async def api_combo_tester_generate_set(request):
                     heavy_contrast_stems = [
                         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
                         "3d_stylized", "oil", "shadow-circuit", "incoth", "jab_illustrious", 
-                        "retro_scifi", "retrocom1", "sarafaber"
+                        "retro_scifi", "retrocom1", "sarafaber", "flat_inking", "detr1mental"
                     ]
                     has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in eff_test_loras)
 
@@ -3920,6 +3941,238 @@ async def api_combo_tester_generate_set(request):
     except Exception as e:
         import traceback
         traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/creation/generate")
+async def api_creation_generate(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        count = int(data.get("count", 2))
+        count = max(1, min(10, count))
+        client_id = data.get("client_id") or "creation_ui"
+
+        ckpt_name = data.get("checkpoint") or OFFICIAL_CHECKPOINTS[0]
+        chosen_loras = data.get("loras", [])
+        prompt_mode = str(data.get("prompt_mode", "custom")).lower().strip()
+        custom_prompt = str(data.get("custom_prompt", "")).strip()
+        is_amoled = bool(data.get("is_amoled", False))
+        aspect_ratio_param = str(data.get("aspect_ratio", "9:16")).strip().lower()
+
+        template_path = COMFY_ROOT / "user" / "default" / "tester_prompt_template.json"
+        if not template_path.exists():
+            template_path = pathlib.Path(r"D:\IA\ComfyUI\user\default\tester_prompt_template.json")
+        if not template_path.exists():
+            return web.json_response({"error": "Template de prompt não encontrado."}, status=500)
+
+        with open(template_path, "r", encoding="utf-8") as f:
+            base_prompt = json.load(f)
+
+        # 1. Configurar Checkpoint (Node 9)
+        if "9" in base_prompt and "inputs" in base_prompt["9"]:
+            base_prompt["9"]["inputs"]["ckpt_name"] = ckpt_name
+
+        # 2. Configurar Modo SFW / Seguro (Node 2: ON = NSFW | OFF = SFW)
+        is_sfw = (prompt_mode == "sfw")
+        if "2" in base_prompt and "inputs" in base_prompt["2"]:
+            base_prompt["2"]["inputs"]["value"] = not is_sfw
+
+        # 3. Configurar Estilo AMOLED (Node 67: ON = AMOLED | OFF = Normal)
+        if "67" in base_prompt and "inputs" in base_prompt["67"]:
+            base_prompt["67"]["inputs"]["value"] = is_amoled
+
+        # 4. Configurar LoRAs (Node 47 - Power Lora Loader)
+        active_loras = [item for item in chosen_loras if item.get("lora") and float(item.get("strength_model", 0.8)) > 0.05]
+        active_loras_count = len(active_loras)
+        lora_triggers = []
+        if "47" in base_prompt and "inputs" in base_prompt["47"]:
+            n47_inputs = base_prompt["47"]["inputs"]
+            for k in list(n47_inputs.keys()):
+                if k.startswith("lora_") and isinstance(n47_inputs[k], dict):
+                    n47_inputs[k]["on"] = False
+
+            for idx, item in enumerate(active_loras, 1):
+                l_name = item.get("lora")
+                if not l_name:
+                    continue
+                trig = find_lora_trigger(l_name)
+                if trig and trig not in lora_triggers:
+                    lora_triggers.append(trig)
+                slot_key = f"lora_{idx}"
+                s_model = float(item.get("strength_model", 0.8))
+                s_clip = float(item.get("strength_clip", s_model))
+                n47_inputs[slot_key] = {
+                    "on": True,
+                    "lora": l_name,
+                    "strength": s_model,
+                    "strengthTwo": s_clip
+                }
+
+        # 5. Configurar PromptReviewer (Node 89)
+        if "89" in base_prompt and "inputs" in base_prompt["89"]:
+            base_prompt["89"]["inputs"]["opt_model"] = ["47", 0]
+            base_prompt["89"]["inputs"]["opt_lora_triggers"] = ", ".join(lora_triggers) if lora_triggers else ""
+
+        # 6. Salvar em pasta 'creation'
+        CREATION_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        if "46" in base_prompt and "inputs" in base_prompt["46"]:
+            base_prompt["46"]["inputs"]["filename_prefix"] = "creation/create"
+
+        # 7. Enfileirar imagens
+        port = getattr(server.PromptServer.instance, "port", 8188)
+        async with aiohttp.ClientSession() as session:
+            for i in range(count):
+                prompt_copy = copy.deepcopy(base_prompt)
+
+                # Resolução
+                is_random_ratio = aspect_ratio_param in ["random", "aleatorio", "aleatório", "var", "variado"]
+                if is_random_ratio:
+                    sample_ratios = ["9:16", "16:9", "1:1", "3:4", "4:3", "2:3", "3:2", "4:5"]
+                    cur_ratio_key = random.choice(sample_ratios)
+                else:
+                    cur_ratio_key = aspect_ratio_param if aspect_ratio_param in PRACTICAL_SDXL_RESOLUTIONS else "9:16"
+
+                res_info = PRACTICAL_SDXL_RESOLUTIONS.get(cur_ratio_key, PRACTICAL_SDXL_RESOLUTIONS["9:16"])
+                cur_w = res_info["width"]
+                cur_h = res_info["height"]
+                is_portrait = res_info["is_portrait"]
+
+                if "1" in prompt_copy and "inputs" in prompt_copy["1"]:
+                    prompt_copy["1"]["inputs"]["value"] = is_portrait
+
+                if is_portrait:
+                    if "3" in prompt_copy and "inputs" in prompt_copy["3"]:
+                        prompt_copy["3"]["inputs"]["value"] = cur_w
+                    if "6" in prompt_copy and "inputs" in prompt_copy["6"]:
+                        prompt_copy["6"]["inputs"]["value"] = cur_h
+                else:
+                    if "4" in prompt_copy and "inputs" in prompt_copy["4"]:
+                        prompt_copy["4"]["inputs"]["value"] = cur_w
+                    if "7" in prompt_copy and "inputs" in prompt_copy["7"]:
+                        prompt_copy["7"]["inputs"]["value"] = cur_h
+
+                if "43" in prompt_copy and "inputs" in prompt_copy["43"]:
+                    prompt_copy["43"]["inputs"]["width"] = cur_w
+                    prompt_copy["43"]["inputs"]["height"] = cur_h
+
+                # Configuração do Prompt conforme o modo selecionado
+                amoled_prefix = "pitch_black_background, pure black background, mostly black image, true black, " if is_amoled else ""
+                if prompt_mode == "custom" and custom_prompt:
+                    if "89" in prompt_copy and "inputs" in prompt_copy["89"]:
+                        prompt_copy["89"]["inputs"]["prompt"] = amoled_prefix + custom_prompt
+                    if "41" in prompt_copy and "inputs" in prompt_copy["41"]:
+                        prompt_copy["41"]["inputs"]["populated_text"] = ["89", 0]
+                        prompt_copy["41"]["inputs"]["mode"] = "fixed"
+                elif prompt_mode == "hybrid" and custom_prompt:
+                    if "89" in prompt_copy and "inputs" in prompt_copy["89"]:
+                        existing_trigs = prompt_copy["89"]["inputs"].get("opt_lora_triggers", "")
+                        combined = (existing_trigs + ", " + amoled_prefix + custom_prompt).strip(", ")
+                        prompt_copy["89"]["inputs"]["opt_lora_triggers"] = combined
+                    if "41" in prompt_copy and "inputs" in prompt_copy["41"]:
+                        prompt_copy["41"]["inputs"]["populated_text"] = ["89", 0]
+                        prompt_copy["41"]["inputs"]["mode"] = "fixed"
+                elif is_amoled:
+                    if "89" in prompt_copy and "inputs" in prompt_copy["89"]:
+                        existing_trigs = prompt_copy["89"]["inputs"].get("opt_lora_triggers", "")
+                        prompt_copy["89"]["inputs"]["opt_lora_triggers"] = (existing_trigs + ", " + amoled_prefix).strip(", ")
+                    if "41" in prompt_copy and "inputs" in prompt_copy["41"]:
+                        prompt_copy["41"]["inputs"]["populated_text"] = ["89", 0]
+                        prompt_copy["41"]["inputs"]["mode"] = "fixed"
+                else:
+                    if "41" in prompt_copy and "inputs" in prompt_copy["41"]:
+                        prompt_copy["41"]["inputs"]["populated_text"] = ["89", 0]
+                        prompt_copy["41"]["inputs"]["mode"] = "fixed"
+
+                # Randomizar seeds
+                for nid, n_info in prompt_copy.items():
+                    n_inputs = n_info.get("inputs", {})
+                    if "seed" in n_inputs:
+                        n_inputs["seed"] = random.randint(1, 999999999999999)
+                    if n_info.get("class_type") == "ImpactWildcardProcessor":
+                        n_inputs["mode"] = "populate"
+                        n_inputs["populated_text"] = ""
+
+                # CFG dinâmico pelo número de LoRAs (5.0 a 3.0)
+                if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
+                    if active_loras_count == 0:
+                        dynamic_cfg = 5.0
+                    elif active_loras_count == 1:
+                        dynamic_cfg = 4.5
+                    elif active_loras_count == 2:
+                        dynamic_cfg = 4.0
+                    elif active_loras_count == 3:
+                        dynamic_cfg = 3.5
+                    else:
+                        dynamic_cfg = 3.0
+                    prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
+
+                payload = {
+                    "prompt": prompt_copy,
+                    "client_id": client_id
+                }
+                async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:
+                    pass
+                await asyncio.sleep(0.15)
+
+        return web.json_response({
+            "success": True,
+            "message": f"Iniciada a criação planejada de {count} imagens!"
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.get("/api/creation/gallery")
+async def api_creation_gallery(request):
+    try:
+        CREATION_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
+        imgs = sorted(
+            [f for f in CREATION_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
+            key=lambda f: f.stat().st_mtime,
+            reverse=True
+        )
+        gallery = []
+        for img in imgs[:60]:
+            p_text, s_val, l_list, ckpt, c_name = _extract_tester_image_meta(img)
+            gallery.append({
+                "filename": img.name,
+                "url": f"/creation_images/{img.name}",
+                "size_bytes": img.stat().st_size,
+                "timestamp": img.stat().st_mtime,
+                "prompt": p_text,
+                "seed": s_val,
+                "loras": l_list,
+                "checkpoint": ckpt,
+                "combo_name": c_name or "Criação Planejada"
+            })
+        return web.json_response({"success": True, "images": gallery})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/creation/save_image")
+async def api_creation_save_image(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        filename = data.get("filename")
+        if not filename:
+            return web.json_response({"error": "Filename não fornecido"}, status=400)
+        src = CREATION_OUTPUT_DIR / filename
+        if not src.exists():
+            return web.json_response({"error": f"Arquivo '{filename}' não encontrado em creation"}, status=404)
+        TESTER_SAVED_DIR.mkdir(parents=True, exist_ok=True)
+        import shutil, time
+        dest = TESTER_SAVED_DIR / filename
+        if src.resolve() != dest.resolve():
+            if dest.exists():
+                dest = TESTER_SAVED_DIR / f"{src.stem}_{int(time.time())}{src.suffix}"
+            shutil.copy2(str(src), str(dest))
+        saved_list = _load_saved_images_list()
+        if dest.name not in saved_list:
+            saved_list.append(dest.name)
+            _save_saved_images_list(saved_list)
+        return web.json_response({"success": True, "message": "Imagem guardada com sucesso!", "saved_filename": dest.name})
+    except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
 @server.PromptServer.instance.routes.get("/combo_tester")

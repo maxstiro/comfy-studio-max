@@ -1671,8 +1671,10 @@ class PromptReviewer:
         # 15.2 Flesh Unit: Unidade Assimilada Biomecânica (Raça Própria)
         if any(k in full_text_lower for k in ['flesh_unit', 'flesh unit', 'assimilated_unit', 'biomechanical_girl']):
             if not any('flesh_unit' in t.lower() and '<lora:' in t.lower() for t in tags):
-                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\flesh_unit_5.1:0.85>, flesh_unit', ['flesh_unit', 'assimilated_unit', '1girl'], place='after')
-                logs.append('[Monster LoRA Loaded] LoRA flesh_unit_5.1 acoplado para a raça própria Flesh Unit.')
+                is_nsfw_scene = any(s in full_text_lower for s in ['nsfw', 'nude', 'naked', 'sex', 'penetration', 'dildo'])
+                flesh_triggers = 'flesh_unit, biomechanical, cybernetic_body, synthetic_skin' if is_nsfw_scene else 'flesh_unit, biomechanical, cybernetic_implants'
+                tags = insert_contextual(tags, f'<lora:illustrious\\monster_girls\\flesh_unit_5.1:0.85>, {flesh_triggers}', ['flesh_unit', 'assimilated_unit', '1girl'], place='after')
+                logs.append(f'[Monster LoRA Loaded] LoRA flesh_unit_5.1 acoplado para Flesh Unit (modo {"NSFW" if is_nsfw_scene else "SFW"}).')
 
         # 15.3 Gazelle Race: Chifres e Traços de Gazela
         if any(k in full_text_lower for k in ['gazelle_girl', 'gazelle_race', 'gazelle']):

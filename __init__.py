@@ -3897,8 +3897,8 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
-                # 5. Escala Dinâmica de CFG de 5.0 até 3.0 (Node 44 - KSampler)
-                # Quanto mais LoRAs ativos, menor o CFG (curva proporcional de 5.0 até 3.0)
+                # 5. Escala Dinâmica de CFG de 7.0 até 3.0 (Node 44 - KSampler)
+                # Quanto mais LoRAs ativos, menor o CFG (curva proporcional de 7.0 até 3.0)
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
                     heavy_contrast_stems = [
                         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
@@ -3908,13 +3908,13 @@ async def api_combo_tester_generate_set(request):
                     has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in eff_test_loras)
 
                     if active_loras_count == 0:
-                        dynamic_cfg = 5.0
+                        dynamic_cfg = 7.0
                     elif active_loras_count == 1:
-                        dynamic_cfg = 4.3 if has_heavy_contrast else 4.5
+                        dynamic_cfg = 5.6 if has_heavy_contrast else 6.0
                     elif active_loras_count == 2:
-                        dynamic_cfg = 3.7 if has_heavy_contrast else 3.9
+                        dynamic_cfg = 4.6 if has_heavy_contrast else 5.0
                     elif active_loras_count == 3:
-                        dynamic_cfg = 3.2 if has_heavy_contrast else 3.4
+                        dynamic_cfg = 3.6 if has_heavy_contrast else 4.0
                     else: # 4 ou mais LoRAs
                         dynamic_cfg = 3.0
 
@@ -4091,16 +4091,23 @@ async def api_creation_generate(request):
                         n_inputs["mode"] = "populate"
                         n_inputs["populated_text"] = ""
 
-                # CFG dinâmico pelo número de LoRAs (5.0 a 3.0)
+                # CFG dinâmico pelo número de LoRAs (7.0 a 3.0)
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
+                    heavy_contrast_stems = [
+                        "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
+                        "3d_stylized", "oil", "shadow-circuit", "incoth", "jab_illustrious", 
+                        "retro_scifi", "retrocom1", "sarafaber", "flat_inking", "detr1mental"
+                    ]
+                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in loras)
+
                     if active_loras_count == 0:
-                        dynamic_cfg = 5.0
+                        dynamic_cfg = 7.0
                     elif active_loras_count == 1:
-                        dynamic_cfg = 4.5
+                        dynamic_cfg = 5.6 if has_heavy_contrast else 6.0
                     elif active_loras_count == 2:
-                        dynamic_cfg = 4.0
+                        dynamic_cfg = 4.6 if has_heavy_contrast else 5.0
                     elif active_loras_count == 3:
-                        dynamic_cfg = 3.5
+                        dynamic_cfg = 3.6 if has_heavy_contrast else 4.0
                     else:
                         dynamic_cfg = 3.0
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg

@@ -3055,9 +3055,10 @@
             recarregarGaleriaAtiva();
 
             if (state.batchCompleted >= totalBatches) {
+              const completedCount = state.batchCompleted;
+              showToast(`Lote completo! (${completedCount}/${totalBatches} geradas)`, 'success');
+              addComfyLog(`🎉 Lote concluído! (${completedCount}/${totalBatches} imagens geradas)`, 'success');
               finalizarExecucaoAtiva(true);
-              showToast(`Lote completo! (${state.batchCompleted}/${totalBatches} geradas)`, 'success');
-              addComfyLog(`🎉 Lote concluído! (${state.batchCompleted}/${totalBatches} imagens geradas)`, 'success');
             } else {
               const currentPct = Math.round((state.batchCompleted / totalBatches) * 100);
               updateProgressUI(

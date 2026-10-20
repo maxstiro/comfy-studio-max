@@ -709,6 +709,22 @@ LORA_TRIGGER_REGISTRY = {
     'fsev1.0-000011': 'fsev1.0, fairy, fairy wings',
     'fsev1.0': 'fsev1.0, fairy, fairy wings',
     'fairy': 'fsev1.0, fairy, fairy wings',
+    'orc-e33_s1155': 'orc, orc_girl, green_skin, tusks',
+    'orc-e33': 'orc, orc_girl, green_skin, tusks',
+    'orc': 'orc, orc_girl, green_skin, tusks',
+    'flesh_unit_5.1': 'flesh_unit',
+    'flesh_unit': 'flesh_unit',
+    'gazelle_race-e66_s1122': 'gazelle_race, gazelle horns',
+    'gazelle_race': 'gazelle_race, gazelle horns',
+    'pand4w4_w4kfu_il': 'pand4w4_w4kfu, panda ears, two tone body',
+    'pand4w4_w4kfu': 'pand4w4_w4kfu, panda ears, two tone body',
+    'pandawa': 'pand4w4_w4kfu, panda ears, two tone body',
+    'serpent-e40_s1360': 'serpent, snake scales',
+    'serpent': 'serpent, snake scales',
+    'navi_race_avatar_jc_illustrious_leaf1': "na'vi, blue skin, pointy ears, yellow eyes",
+    'navi_race': "na'vi, blue skin, pointy ears, yellow eyes",
+    'saber-toothed': 'saber-tooth, saber-toothed, smilodon tail, countershading',
+    'saber_toothed': 'saber-tooth, saber-toothed, smilodon tail, countershading',
     'paulinaapcxlp_style-08': 'paulinaapcxlp',
     'paulinaapcxlp': 'paulinaapcxlp',
     'jmoxcomix_style-12': 'jmoxcomic',
@@ -1308,22 +1324,48 @@ class PromptReviewer:
                 tags = new_tags
                 logs.append(f'[Wallpaper Framing Fixed] Substituido enquadramento fechado {replaced_cameras} por plano ambiental aberto para valorizar o cenario de wallpaper.')
 
-        # 9. Harmonizacao de Duplas Femininas (2girls)
+        # 9. Harmonizacao de Duplas Femininas (2girls substituindo 1girl no slot principal, sem duplicar no final)
         full_text_lower = ' '.join(tags).lower()
-        if '2girls' in full_text_lower or 'multiple_girls' in full_text_lower:
-            solo_conflicts = {'1girl', 'solo'}
-            new_tags = []
-            dropped_solo = []
+        has_2girls = any(k in full_text_lower for k in ['2girls', 'multiple_girls', 'two_girls'])
+        if has_2girls:
+            # Identificar a posicao original do sujeito (onde 1girl ou solo estavam posicionados)
+            target_idx = None
+            for idx, t in enumerate(tags):
+                tl = t.lower().strip()
+                if tl in {'1girl', 'solo', '(1girl)', '(solo)'}:
+                    target_idx = idx
+                    break
+
+            # Se 1girl nao foi encontrado como tag isolada, posicionar logo apos as tags de qualidade
+            if target_idx is None:
+                for idx, t in enumerate(tags):
+                    tl = t.lower().strip()
+                    if any(c in tl for c in ['masterpiece', 'best quality', 'ultra-detailed', 'absurdres', 'highly aesthetic']):
+                        target_idx = idx + 1
+                if target_idx is None:
+                    target_idx = 0
+
+            # Limpar 1girl/solo e retirar 2girls/multiple_girls de tags compostas posteriores (ex: de wildcards de atividade)
+            cleaned_tags = []
             for t in tags:
-                if t.lower().strip() in solo_conflicts:
-                    dropped_solo.append(t)
+                tl = t.lower().strip()
+                if tl in {'1girl', 'solo', '(1girl)', '(solo)'}:
+                    continue
+                if tl in {'2girls', 'multiple_girls', '2girls, multiple_girls', 'two_girls'}:
+                    continue
+                if '2girls' in tl or 'multiple_girls' in tl or 'two_girls' in tl:
+                    parts = [p.strip() for p in t.split(',') if p.strip()]
+                    kept_parts = [p for p in parts if p.lower().strip() not in {'2girls', 'multiple_girls', 'two_girls'}]
+                    if kept_parts:
+                        cleaned_tags.append(', '.join(kept_parts))
                 else:
-                    new_tags.append(t)
-            if dropped_solo:
-                tags = new_tags
-                logs.append(f'[2girls Harmonization] Removidas tags solo {dropped_solo} para evitar conflitos com dupla de personagens.')
-            if not any('multiple_girls' in t.lower() for t in tags):
-                tags.append('multiple_girls')
+                    cleaned_tags.append(t)
+
+            # Inserir '2girls, multiple_girls' exatamente na posicao onde 1girl estava
+            final_pos = min(target_idx, len(cleaned_tags))
+            cleaned_tags.insert(final_pos, '2girls, multiple_girls')
+            tags = cleaned_tags
+            logs.append(f'[2girls Harmonization] Tag "2girls, multiple_girls" inserida no início (slot {final_pos}), substituindo 1girl/solo e sem vir no final do prompt.')
         # 10. Protecao e Firmeza Anatomica em Camas / Colchoes (Anti-Afundamento de Membros)
         full_text_lower = ' '.join(tags).lower()
         bed_signals = {'bed', 'mattress', 'satin_sheets', 'sheets', 'futon', 'on_bed', 'kneeling_on_bed', 'sitting_on_edge_of_bed'}
@@ -1614,6 +1656,53 @@ class PromptReviewer:
                 if not any('ghost-sfwnsfw' in t.lower() or 'ghost_sex' in t.lower() for t in tags):
                     tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Ghost-SFWNSFW-IL.V1.0-000013:0.85>, ghost, translucent body, see-through body', ['ghost_girl', 'ghost', 'phantom', 'banshee', '1girl'], place='after')
                     logs.append('[Monster LoRA Loaded] LoRA Ghost-SFWNSFW-IL acoplado dinamicamente para personagem fantasma.')
+
+        # 15.1 Orc Girl: LoRA Especialista Orc e Desobrigação de Dreadlocks
+        if any(k in full_text_lower for k in ['orc_girl', 'orc', 'female_orc', 'orc_woman']):
+            if not any('orc-e33' in t.lower() or ('orc' in t.lower() and '<lora:' in t.lower()) for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Orc-e33_s1155:0.85>, orc, orc_girl, green_skin, tusks', ['orc_girl', 'orc', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Orc-e33_s1155 acoplado adjacente à Orc.')
+
+            # Desobrigação de dreadlocks: não forçar dreadlocks na Orc para permitir variedade de penteados
+            if any('dreadlock' in t.lower() for t in tags):
+                tags = [t for t in tags if not any(d in t.lower() for d in ['dreadlocks', 'dreadlock'])]
+                logs.append('[Orc Hair Diversity] Removido "dreadlocks" obrigatório para permitir diversidade de penteados na Orc.')
+
+        # 15.2 Flesh Unit: Unidade Assimilada Biomecânica (Raça Própria)
+        if any(k in full_text_lower for k in ['flesh_unit', 'flesh unit', 'assimilated_unit', 'biomechanical_girl']):
+            if not any('flesh_unit' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\flesh_unit_5.1:0.85>, flesh_unit', ['flesh_unit', 'assimilated_unit', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA flesh_unit_5.1 acoplado para a raça própria Flesh Unit.')
+
+        # 15.3 Gazelle Race: Chifres e Traços de Gazela
+        if any(k in full_text_lower for k in ['gazelle_girl', 'gazelle_race', 'gazelle']):
+            if not any('gazelle' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Gazelle_Race-e66_s1122:0.85>, gazelle_race, gazelle horns', ['gazelle_girl', 'gazelle_race', 'gazelle', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Gazelle_Race-e66_s1122 acoplado adjacente à Gazela.')
+
+        # 15.4 Pandawa: Menina Panda (Wakfu/Fantasy)
+        if any(k in full_text_lower for k in ['pandawa', 'pand4w4', 'pand4w4_w4kfu', 'panda_girl']):
+            if not any('pand4w4' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\pand4w4_w4kfu_IL:0.85>, pand4w4_w4kfu, giant panda, animal ears, two tone body', ['pandawa', 'panda_girl', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA pand4w4_w4kfu_IL acoplado adjacente à Pandawa.')
+
+        # 15.5 Serpent Race: Escamas e Traços de Serpente
+        if any(k in full_text_lower for k in ['serpent_girl', 'serpent_race', 'serpent']) and not any('lamiaxl' in t.lower() for t in tags):
+            if not any('serpent' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Serpent-e40_s1360:0.85>, serpent, snake scales', ['serpent_girl', 'serpent_race', 'serpent', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Serpent-e40_s1360 acoplado adjacente à Serpente.')
+
+        # 15.6 Na'vi: Avatar / Orelhas Pontudas, Pele Azul e Olhos Amarelos
+        if any(k in full_text_lower for k in ["na'vi", 'navi_girl', 'navi_race', 'avatar_race']):
+            if not any('navi' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, "<lora:illustrious\\monster_girls\\NaVi_Race_Avatar_JC_illustrious_Leaf1:0.85>, na'vi, blue skin, pointy ears, yellow eyes", ["na'vi", 'navi_girl', '1girl'], place='after')
+                logs.append("[Monster LoRA Loaded] LoRA NaVi_Race_Avatar_JC_illustrious_Leaf1 acoplado adjacente à Na'vi.")
+
+        # 15.7 Saber-toothed: Smilodon / Dente-de-Sabre
+        if any(k in full_text_lower for k in ['saber_toothed', 'saber-toothed', 'saber-tooth', 'smilodon']):
+            if not any('saber-tooth' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Saber-toothed:0.85>, saber-tooth, saber-toothed, smilodon tail, countershading', ['saber-toothed', 'saber-tooth', 'smilodon', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Saber-toothed acoplado adjacente à Tigresa Dente-de-Sabre.')
 
         # 16. Moderação de Expressões Faciais Excessivas (love-struck é preservado e permitido!)
         drool_heart_tags = {'drooling', 'drool_bead', 'swirling_pupils', 'heart_shaped_pupils'}
@@ -2386,9 +2475,9 @@ def get_sampleable_loras(refresh=False):
     all_l = get_available_loras(refresh=refresh)
     sampleable = [l for l in all_l if not any(skip in l.lower() for skip in [
         "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
-        "draenei", "fsev", "fairy",
+        "draenei", "fsev", "fairy", "orc", "flesh_unit", "gazelle", "pand4w4", "serpent", "navi", "saber",
         "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator",
-        "chokersnap", "heldbygiant"
+        "chokersnap", "heldbygiant", "5-oral"
     ])]
     return sampleable if sampleable else all_l
 
@@ -2785,8 +2874,13 @@ def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
         RACIAL_OR_UTILITY_LORA_STEMS = {
             "alamiaxl_concept-10", "amermaidfxm_concept-10", "arobotgirls_concept-12",
             "concept_alamiaxl", "concept_amermaidfxm", "concept_arobotgirls",
+            "gorgonlora-il-000014", "ghost-sfwnsfw-il.v1.0-000013", "ghost_sex",
+            "draenei-il-000014", "fsev1.0-000011",
+            "orc-e33_s1155", "flesh_unit_5.1", "gazelle_race-e66_s1122",
+            "pand4w4_w4kfu_il", "serpent-e40_s1360", "navi_race_avatar_jc_illustrious_leaf1",
+            "saber-toothed",
             "1-freaky_dicksv3", "freaky_dicks", "2-masturbation with dildo (illustrious) v1",
-            "3-spreadanusill", "4-buttplugs"
+            "3-spreadanusill", "4-buttplugs", "5-oral", "6-heldbygiant"
         }
 
         img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}
@@ -3930,8 +4024,8 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
-                # 5. Escala Dinâmica de CFG de 7.0 até 3.0 (Node 44 - KSampler)
-                # Quanto mais LoRAs ativos, menor o CFG (curva proporcional de 7.0 até 3.0)
+                # 5. Escala Dinâmica de CFG de 5.0 até 3.0 (Node 44 - KSampler)
+                # Quanto mais LoRAs ativos, menor o CFG (curva proporcional de 5.0 até 3.0)
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
                     heavy_contrast_stems = [
                         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
@@ -3941,13 +4035,13 @@ async def api_combo_tester_generate_set(request):
                     has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in eff_test_loras)
 
                     if active_loras_count == 0:
-                        dynamic_cfg = 7.0
+                        dynamic_cfg = 5.0
                     elif active_loras_count == 1:
-                        dynamic_cfg = 5.6 if has_heavy_contrast else 6.0
+                        dynamic_cfg = 4.3 if has_heavy_contrast else 4.5
                     elif active_loras_count == 2:
-                        dynamic_cfg = 4.6 if has_heavy_contrast else 5.0
+                        dynamic_cfg = 3.7 if has_heavy_contrast else 3.9
                     elif active_loras_count == 3:
-                        dynamic_cfg = 3.6 if has_heavy_contrast else 4.0
+                        dynamic_cfg = 3.2 if has_heavy_contrast else 3.4
                     else: # 4 ou mais LoRAs
                         dynamic_cfg = 3.0
 
@@ -4141,7 +4235,7 @@ async def api_creation_generate(request):
                         n_inputs["mode"] = "populate"
                         n_inputs["populated_text"] = ""
 
-                # CFG dinâmico pelo número de LoRAs (7.0 a 3.0)
+                # CFG dinâmico pelo número de LoRAs (5.0 a 3.0)
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
                     heavy_contrast_stems = [
                         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
@@ -4151,13 +4245,13 @@ async def api_creation_generate(request):
                     has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in loras)
 
                     if active_loras_count == 0:
-                        dynamic_cfg = 7.0
+                        dynamic_cfg = 5.0
                     elif active_loras_count == 1:
-                        dynamic_cfg = 5.6 if has_heavy_contrast else 6.0
+                        dynamic_cfg = 4.3 if has_heavy_contrast else 4.5
                     elif active_loras_count == 2:
-                        dynamic_cfg = 4.6 if has_heavy_contrast else 5.0
+                        dynamic_cfg = 3.7 if has_heavy_contrast else 3.9
                     elif active_loras_count == 3:
-                        dynamic_cfg = 3.6 if has_heavy_contrast else 4.0
+                        dynamic_cfg = 3.2 if has_heavy_contrast else 3.4
                     else:
                         dynamic_cfg = 3.0
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg

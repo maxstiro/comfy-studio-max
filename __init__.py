@@ -1538,26 +1538,44 @@ class PromptReviewer:
             should_activate_fdicks = is_explicit_penis or (prompt_hash_val % 100 < 50)
             if should_activate_fdicks:
                 if not any('1-freaky_dicks' in t.lower() for t in tags):
-                    fdick_triggers = [
-                        'fdicks, veiny penis, huge penis',
-                        'fdicks, veiny penis, realistic',
-                        'fdicks, shiny skin, erection',
-                        'fdicks, knotted, huge penis'
-                    ]
-                    if 'tentacle' in full_text_lower:
-                        chosen_trig = 'fdicks, tentacle penis'
-                    elif any(eq in full_text_lower for eq in ['horse', 'centaur', 'stallion']):
-                        chosen_trig = 'fdicks, horse penis, huge penis'
-                    elif any(rb in full_text_lower for rb in ['robot', 'android', 'cyborg']):
-                        chosen_trig = 'fdicks, robot penis'
+                    # Seleção inteligente de trigger de variação treinado (por criatura/raça ou rotação criativa completa)
+                    if any(w in full_text_lower for w in ['tentacle', 'squid', 'octopus', 'kraken', 'eldritch', 'slime']):
+                        chosen_trig = 'fdicks, tentacle penis, huge penis'
+                    elif any(w in full_text_lower for w in ['horse', 'centaur', 'stallion', 'equine', 'unicorn', 'donkey']):
+                        chosen_trig = 'fdicks, horse penis, huge penis, equine knot'
+                    elif any(w in full_text_lower for w in ['dog', 'wolf', 'canine', 'werewolf', 'fox', 'anubis', 'gnoll', 'kobold', 'hound']):
+                        chosen_trig = 'fdicks, canine penis, knotted, huge penis'
+                    elif any(w in full_text_lower for w in ['dragon', 'lizard', 'reptile', 'demon', 'devil', 'gargoyle', 'succubus', 'incubus']):
+                        chosen_trig = 'fdicks, spiked penis, veiny penis, huge penis'
+                    elif any(w in full_text_lower for w in ['orc', 'goblin', 'troll', 'ogre', 'monster', 'beast']):
+                        chosen_trig = 'fdicks, bumped penis, huge penis, veiny penis'
+                    elif any(w in full_text_lower for w in ['alien', 'xenomorph', 'cosmic', 'extraterrestrial']):
+                        chosen_trig = 'fdicks, alien penis, shiny skin'
+                    elif any(w in full_text_lower for w in ['insect', 'bug', 'arachne', 'spider', 'mantis', 'chitin']):
+                        chosen_trig = 'fdicks, segmented penis, realistic'
+                    elif any(w in full_text_lower for w in ['robot', 'android', 'cyborg', 'mech', 'automaton']):
+                        chosen_trig = 'fdicks, robot penis, shiny skin'
                     else:
-                        chosen_trig = fdick_triggers[prompt_hash_val % len(fdick_triggers)]
+                        # Rotação rica em todas as variações oficiais treinadas do LoRA para parceiros 1boy|1Other
+                        all_freaky_variations = [
+                            'fdicks, canine penis, knotted, huge penis',
+                            'fdicks, horse penis, huge penis, equine knot',
+                            'fdicks, tentacle penis, huge penis',
+                            'fdicks, spiked penis, veiny penis',
+                            'fdicks, bumped penis, huge penis',
+                            'fdicks, alien penis, shiny skin, erection',
+                            'fdicks, segmented penis, realistic',
+                            'fdicks, veiny penis, huge penis, realistic',
+                            'fdicks, knotted, huge penis, erection',
+                            'fdicks, robot penis, shiny skin'
+                        ]
+                        chosen_trig = all_freaky_variations[prompt_hash_val % len(all_freaky_variations)]
 
                     lora_tag = '<lora:illustrious\\nsfw\\1-Freaky_dicksv3.safetensors:0.8>'
                     penis_anchors = ['large_penis', 'penis', '1boy|1other', '1boy', '1other', 'male_out_of_frame', 'faceless_male', 'partner', 'vaginal_penetration', 'anal_penetration', 'blowjob']
                     tags = insert_contextual(tags, lora_tag, penis_anchors, place='after')
                     tags = insert_contextual(tags, chosen_trig, [lora_tag, 'large_penis', 'penis', '1boy|1other'], place='after')
-                    logs.append(f'[NSFW LoRA 1 Injected] Freaky_dicksv3 acoplado contextualmente ao lado do pênis/masculino com trigger "{chosen_trig}".')
+                    logs.append(f'[NSFW LoRA 1 Injected] Freaky_dicksv3 acoplado contextualmente ao lado do pênis/masculino com trigger de variação "{chosen_trig}".')
 
         # LoRA 2: Masturbation with Dildo (atividades nsfw com objetos ou sex_toys)
         dildo_match = any(d in full_text_lower for d in ['dildo', 'sex_toy', 'sex toy', 'object_insertion', 'object insertion', 'vaginal object insertion', 'using_dildo', 'holding_dildo'])
@@ -1580,14 +1598,17 @@ class PromptReviewer:
                 logs.append('[NSFW LoRA 3 Injected] SpreadAnusIll acoplado contextualmente ao lado da apresentação do ânus.')
 
         # LoRA 4: Butt Plugs (quando plugs forem promptados)
-        plug_match = any(p in full_text_lower for p in ['buttplug', 'butt_plug', 'butt plug', 'anal_plug', 'tail_plug', 'plug', 'jewel_butt_plug', 'anal_beads'])
+        plug_match = any(p in full_text_lower for p in [
+            'buttplug', 'butt_plug', 'butt plug', 'anal_plug', 'tail_plug', 
+            'butt_blug', 'blug', 'plug', 'jewel_butt_plug', 'anal_beads'
+        ])
         if plug_match:
             if not any('4-buttplugs' in t.lower() for t in tags):
                 lora_tag = '<lora:illustrious\\nsfw\\4-buttplugs.safetensors:0.8>'
                 plug_trig = 'buttplug, anal object insertion, sex toy'
                 if 'jewel' in full_text_lower:
                     plug_trig = 'buttplug, jewel butt plug, anal object insertion, sex toy'
-                tags = insert_contextual(tags, lora_tag, ['buttplug', 'butt_plug', 'anal_plug', 'tail_plug', 'plug'], place='after')
+                tags = insert_contextual(tags, lora_tag, ['buttplug', 'butt_plug', 'anal_plug', 'tail_plug', 'butt_blug', 'plug'], place='after')
                 tags = insert_contextual(tags, plug_trig, [lora_tag, 'buttplug', 'plug'], place='after')
                 logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
 

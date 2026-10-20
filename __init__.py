@@ -2052,7 +2052,8 @@ def _save_rounds_tracker(data):
 def _advance_tester_rounds_and_cleanup():
     """
     Incrementa a contagem de resorteios das imagens não guardadas no diretório TESTER_OUTPUT_DIR.
-    Se uma imagem atingir 3 resorteios de LoRAs sem ser movida para guardadas, é removida do disco.
+    Se uma imagem atingir 6 resorteios de LoRAs sem ser guardada, é movida com segurança para tester_trash
+    (impedindo perda acidental de imagens).
     """
     tracker = _load_rounds_tracker()
     valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
@@ -2062,23 +2063,29 @@ def _advance_tester_rounds_and_cleanup():
         
     current_files = {f.name: f for f in TESTER_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts}
     new_tracker = {}
-    deleted_count = 0
+    moved_count = 0
+
+    trash_dir = TESTER_OUTPUT_DIR.parent / "tester_trash"
 
     for fname, fpath in current_files.items():
         age = tracker.get(fname, 0) + 1
-        if age >= 3:
+        if age >= 6:
             try:
-                fpath.unlink()
-                deleted_count += 1
-                print(f"[RoundsTracker] Imagem '{fname}' removida após 3 resorteios de LoRAs sem ser guardada.")
+                trash_dir.mkdir(parents=True, exist_ok=True)
+                dest = trash_dir / fname
+                if dest.exists():
+                    dest.unlink()
+                fpath.rename(dest)
+                moved_count += 1
+                print(f"[RoundsTracker] Imagem '{fname}' movida para tester_trash após 6 resorteios sem ser guardada.")
             except Exception as err:
-                print(f"[RoundsTracker] Erro ao remover {fname}: {err}")
+                print(f"[RoundsTracker] Erro ao mover {fname}: {err}")
         else:
             new_tracker[fname] = age
 
     _save_rounds_tracker(new_tracker)
-    if deleted_count > 0:
-        print(f"[RoundsTracker] Limpeza de ciclo: {deleted_count} imagem(ns) não guardada(s) removida(s).")
+    if moved_count > 0:
+        print(f"[RoundsTracker] Limpeza de ciclo: {moved_count} imagem(ns) arquivada(s) em tester_trash.")
 
 
 def _load_approved_combos_data():

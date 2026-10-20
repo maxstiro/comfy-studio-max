@@ -699,6 +699,12 @@ LORA_TRIGGER_REGISTRY = {
     'ghost-sfwnsfw-il': 'ghost, translucent body, see-through body',
     'ghost-sfwnsfw': 'ghost, translucent body, see-through body',
     'ghost_sex': 'ghost sex, translucent body',
+    'draenei-il-000014': 'dra-v1.0, dra-v1.0-f, draenei',
+    'draenei-il': 'dra-v1.0, dra-v1.0-f, draenei',
+    'draenei': 'dra-v1.0, dra-v1.0-f, draenei',
+    'fsev1.0-000011': 'fsev1.0, fairy, fairy wings',
+    'fsev1.0': 'fsev1.0, fairy, fairy wings',
+    'fairy': 'fsev1.0, fairy, fairy wings',
     'paulinaapcxlp_style-08': 'paulinaapcxlp',
     'paulinaapcxlp': 'paulinaapcxlp',
     'jmoxcomix_style-12': 'jmoxcomic',
@@ -739,6 +745,10 @@ LORA_TRIGGER_REGISTRY = {
     'raw-color': 'raw color',
     'rule_of_thirds_2': 'rule of thirds',
     'rule_of_thirds': 'rule of thirds',
+    'thronebreakeril-000014': 'tbcv1',
+    'thronebreakeril': 'tbcv1',
+    'thronebreaker': 'tbcv1',
+    'tbcv1': 'tbcv1',
     'vempire': 'vempire',
 
     # Anima
@@ -762,7 +772,13 @@ LORA_TRIGGER_REGISTRY = {
     '3-spreadanusill': 'spreadanusill, spread anus',
     'spreadanusill': 'spreadanusill, spread anus',
     '4-buttplugs': 'buttplug, anal object insertion',
-    'buttplugs': 'buttplug, anal object insertion'
+    'buttplugs': 'buttplug, anal object insertion',
+    '5-chokersnap_epoch_14': 'ChokerSnap',
+    '5-chokersnap': 'ChokerSnap',
+    'chokersnap': 'ChokerSnap',
+    '6-heldbygiantv2illlllllll_epoch_11': 'HeldByGiantV2ILLLLLLLLL',
+    '6-heldbygiant': 'HeldByGiantV2ILLLLLLLLL',
+    'heldbygiant': 'HeldByGiantV2ILLLLLLLLL'
 }
 
 def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_to_end=True, place='after') -> list:
@@ -1535,6 +1551,32 @@ class PromptReviewer:
                 tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\ARobotGirls_Concept-12:0.8>, robotxl', ['robot_girl', 'android_girl', 'cyborg', '1girl'], place='after')
                 logs.append('[Monster LoRA Loaded] LoRA ARobotGirls_Concept-12 acoplado adjacente à garota robo.')
 
+        # 14.4 Draenei: Chifres, Cauda, Pele Azul e Pernas Digitígradas/Cascos
+        if any(k in full_text_lower for k in ['draenei', 'draenei_girl', 'eredar', 'dra-v1.0']):
+            if not any('no_human_ears' in t.lower() for t in tags):
+                tags = insert_contextual(tags, 'no_human_ears', ['draenei', 'pointy_ears', '1girl'], place='after')
+            if not any('draenei-il' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Draenei-IL-000014:0.85>, dra-v1.0, dra-v1.0-f, draenei, horns, blue_skin', ['draenei', 'draenei_girl', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA Draenei-IL-000014 acoplado adjacente à Draenei.')
+
+        # 14.5 Fairy / Pixie: Asas de Fada Etéreas e Purga de Asas Demoníacas/Penas
+        if any(k in full_text_lower for k in ['fairy_girl', 'fairy', 'pixie', 'fsev1.0']):
+            conflicting_wings = {'black_bat_wings', 'bat_wings', 'demon_wings', 'feathered_wings', 'angel_wings'}
+            purged_wings = []
+            new_tags = []
+            for t in tags:
+                tl = t.lower().strip()
+                if any(cw in tl for cw in conflicting_wings):
+                    purged_wings.append(t)
+                else:
+                    new_tags.append(t)
+            if purged_wings:
+                tags = new_tags
+                logs.append(f'[Fairy Wings Cleanse] Removidas asas conflitantes {purged_wings} para garantir asas puras de fada.')
+            if not any('fsev1.0' in t.lower() or 'fairy' in t.lower() and '<lora:' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\FSEV1.0-000011:0.85>, fsev1.0, fairy, fairy wings, wings', ['fairy_girl', 'fairy', 'pixie', '1girl'], place='after')
+                logs.append('[Monster LoRA Loaded] LoRA FSEV1.0-000011 acoplado adjacente à Fada.')
+
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real e LoRAs Especialistas (SFW / NSFW)
         ghost_signals = {'ghost_girl', 'ghost', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit', 'ghost_sex'}
         if any(gs in full_text_lower for gs in ghost_signals):
@@ -1689,6 +1731,32 @@ class PromptReviewer:
                 tags = insert_contextual(tags, lora_tag, ['buttplug', 'butt_plug', 'anal_plug', 'tail_plug', 'butt_blug', 'plug'], place='after')
                 tags = insert_contextual(tags, plug_trig, [lora_tag, 'buttplug', 'plug'], place='after')
                 logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
+
+        # LoRA 5: ChokerSnap (oral profundo / deepthroat / facefuck / choking)
+        choker_match = any(c in full_text_lower for c in [
+            'chokersnap', 'deepthroat', 'facefuck', 'forced_oral', 'throat_bulge', 
+            'gagging', 'intense_blowjob', 'choking', 'throat_penetration'
+        ])
+        if choker_match:
+            if not any('5-chokersnap' in t.lower() for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\5-ChokerSnap_epoch_14.safetensors:0.8>'
+                choker_trig = 'ChokerSnap'
+                tags = insert_contextual(tags, lora_tag, ['deepthroat', 'facefuck', 'blowjob', 'oral', 'large_penis'], place='after')
+                tags = insert_contextual(tags, choker_trig, [lora_tag, 'deepthroat', 'blowjob'], place='after')
+                logs.append('[NSFW LoRA 5 Injected] ChokerSnap acoplado contextualmente ao lado do ato oral profundo.')
+
+        # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho)
+        giant_match = any(g in full_text_lower for g in [
+            'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
+            'held_in_hand', 'picked_up_by_giant', 'giant_hand', 'giant_fingers'
+        ]) or ('giant' in full_text_lower and 'size_difference' in full_text_lower)
+        if giant_match:
+            if not any('6-heldbygiant' in t.lower() for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\6-HeldByGiantV2ILLLLLLLLL_epoch_11.safetensors:0.8>'
+                giant_trig = 'HeldByGiantV2ILLLLLLLLL'
+                tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant', '1girl', 'female_focus'], place='after')
+                tags = insert_contextual(tags, giant_trig, [lora_tag, 'held_by_giant', 'size_difference'], place='after')
+                logs.append('[NSFW LoRA 6 Injected] HeldByGiantV2ILLLLLLLLL acoplado contextualmente para cena de gigante.')
 
         # 19. Equilíbrio Dinâmico de Pesos e Anti-Burn / Anti-Supersaturação
         # Multiplicadores excessivos (> 1.20) no SDXL / Illustrious degradam e estressam o espaço latente,
@@ -2311,7 +2379,9 @@ def get_sampleable_loras(refresh=False):
     all_l = get_available_loras(refresh=refresh)
     sampleable = [l for l in all_l if not any(skip in l.lower() for skip in [
         "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
-        "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator"
+        "draenei", "fsev", "fairy",
+        "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator",
+        "chokersnap", "heldbygiant"
     ])]
     return sampleable if sampleable else all_l
 
@@ -2321,7 +2391,7 @@ LORA_CATEGORIES = {
         "between pages", "g0thic", "flat_inking", "detr1mental"
     ],
     "style_comic": [
-        "comics_gff", "comiks", "jmoxcomix", "retrocom", "sunstone", "disgea", "mad_tale"
+        "comics_gff", "comiks", "jmoxcomix", "retrocom", "sunstone", "disgea", "mad_tale", "thronebreaker", "tbcv1"
     ],
     "style_cartoon": [
         "disney", "carto4on", "fantasia", "cartoon_saloon", "heylittlekhana", "csstyle", "hlk_style"

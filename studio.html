@@ -1245,6 +1245,9 @@
         <div class="status-dot" id="engine-status-dot"></div>
         <span id="engine-status-text">Verificando Motor...</span>
       </div>
+      <button id="btn-free-vram" class="btn btn-secondary btn-sm" onclick="liberarVramComfyUI()" style="font-size: 0.74rem; padding: 4px 10px; border-radius: var(--radius-sm); border-color: rgba(56,189,248,0.4);" title="Limpar fila travada, descarregar modelos da memória e liberar GPU/RAM">
+        <span>🧹 Liberar VRAM</span>
+      </button>
       <button id="btn-engine-toggle" class="btn btn-secondary btn-sm" onclick="alternarMotorComfyUI()" style="font-size: 0.74rem; padding: 4px 10px; border-radius: var(--radius-sm); border-color: rgba(99,102,241,0.4);">
         <span id="btn-engine-toggle-text">⚡ Desligar Motor</span>
       </button>
@@ -3132,6 +3135,8 @@
           const errText = d.exception_message || 'Falha no ComfyUI';
           showToast('Erro na execução do nó: ' + errText, 'error');
           addComfyLog(`❌ Erro no nó ${d.node_id || ''}: ${errText}`, 'error');
+          // Limpa fila travada e descarrega modelos da memória para recuperar o sistema
+          liberarVramComfyUI(true);
         }
       }
     }
@@ -3639,6 +3644,11 @@
         const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
         if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
 
+        const hasSavedPreset = Boolean(
+          effectiveCombo && 
+          (state.approvedCombos || []).some(p => p.name === effectiveCombo || String(p.id) === String(effectiveCombo))
+        );
+
         const currentTs = String(img.timestamp || '');
         const imgSrc = `${img.url}?t=${currentTs}`;
         let card = existingCards.get(img.filename);
@@ -3647,6 +3657,17 @@
           if (cardImg && cardImg.getAttribute('data-ts') !== currentTs) {
             cardImg.setAttribute('data-ts', currentTs);
             cardImg.src = imgSrc;
+          }
+          const comboBlock = card.querySelector('.saved-card-combo');
+          if (comboBlock) {
+            if (!hasSavedPreset) {
+              comboBlock.style.background = 'rgba(0,0,0,0.35)';
+              comboBlock.style.border = '1px dashed rgba(255,255,255,0.12)';
+              comboBlock.style.display = 'flex';
+              comboBlock.style.alignItems = 'center';
+              comboBlock.style.justifyContent = 'center';
+              comboBlock.innerHTML = '<span style="font-size: 0.74rem; font-weight: 700; color: #94a3b8; font-style: italic; letter-spacing: 0.5px;">lostPreset</span>';
+            }
           }
           grid.appendChild(card);
         } else {
@@ -3660,8 +3681,9 @@
           <div class="image-card-body">
             <div class="image-card-title" title="${img.filename}">${img.filename}</div>
 
+            ${hasSavedPreset ? `
             <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 6px 8px; background: rgba(0,0,0,0.45); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
-              ${effectiveCombo ? `<div style="font-size: 0.76rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; text-shadow: 0 0 8px rgba(56,189,248,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>` : ''}
+              <div style="font-size: 0.76rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; text-shadow: 0 0 8px rgba(56,189,248,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>
               ${img.checkpoint ? `<div style="font-size: 0.72rem; font-weight: 700; color: #a5b4fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;" title="Modelo: ${img.checkpoint}">📦 ${img.checkpoint}</div>` : ''}
               <div style="display: flex; flex-direction: column; gap: 3px;">
                 ${(img.loras && img.loras.length > 0)
@@ -3675,6 +3697,11 @@
                   : '<span style="color: #64748b; font-size: 0.68rem; font-style: italic;">Sem LoRAs extras</span>'}
               </div>
             </div>
+            ` : `
+            <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 8px 10px; background: rgba(0,0,0,0.35); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 0.74rem; font-weight: 700; color: #94a3b8; font-style: italic; letter-spacing: 0.5px;">lostPreset</span>
+            </div>
+            `}
 
             <div class="image-card-actions" style="gap: 5px;">
               <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨ Refinar</button>
@@ -6825,6 +6852,42 @@
         if (text) text.innerText = 'ComfyUI Desligado';
         if (btnText) btnText.innerText = '⚡ Ligar ComfyUI';
         if (btn) btn.className = 'btn btn-primary btn-sm';
+      }
+    }
+
+    async function liberarVramComfyUI(silencioso = false) {
+      const btn = document.getElementById('btn-free-vram');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ Liberando...</span>';
+      }
+      try {
+        const res = await fetch('/api/manager/free_vram', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          if (!silencioso) showToast('🧹 VRAM da GPU e RAM liberadas com sucesso!', 'success');
+          addComfyLog('🧹 Modelos descarregados e memória VRAM/RAM liberada.', 'info');
+        } else {
+          if (!silencioso) showToast(data.error || 'Erro ao liberar memória', 'error');
+        }
+      } catch (e) {
+        // Fallback para endpoint nativo /free do ComfyUI
+        try {
+          await fetch('/free', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unload_models: true, free_memory: true })
+          });
+          if (!silencioso) showToast('🧹 VRAM liberada!', 'success');
+          addComfyLog('🧹 VRAM liberada via ComfyUI nativo.', 'info');
+        } catch (err) {
+          if (!silencioso) showToast('Erro ao liberar VRAM: ' + e.message, 'error');
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🧹 Liberar VRAM</span>';
+        }
       }
     }
 

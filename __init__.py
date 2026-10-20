@@ -3473,6 +3473,39 @@ async def api_manager_start(request):
 async def api_manager_status(request):
     return web.json_response({"success": True, "comfyui_online": True})
 
+@server.PromptServer.instance.routes.post("/api/manager/free_vram")
+async def api_manager_free_vram(request):
+    """Libera a memória de vídeo (VRAM) e RAM descarregando modelos ociosos e limpando fila."""
+    try:
+        import gc
+        import comfy.model_management as mm
+
+        # 1. Limpa fila do ComfyUI se houver itens travados/interrompidos
+        try:
+            server.PromptServer.instance.prompt_queue.wipe_queue()
+        except Exception:
+            pass
+
+        # 2. Descarrega modelos e limpa cache da GPU/RAM
+        mm.unload_all_models()
+        mm.cleanup_models()
+        mm.soft_empty_cache()
+        gc.collect()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            try:
+                torch.cuda.ipc_collect()
+            except Exception:
+                pass
+
+        return web.json_response({
+            "success": True, 
+            "message": "Modelos descarregados e VRAM/RAM liberadas com sucesso!"
+        })
+    except Exception as e:
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
 @server.PromptServer.instance.routes.post("/api/combo_tester/save_image")
 async def api_combo_tester_save_image(request):
     try:
@@ -3920,6 +3953,13 @@ async def api_combo_tester_generate_set(request):
 
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
+                # 6. Garantir VAEDecodeTiled no Node 45 para evitar estouro de memória (alloc_cpu OOM)
+                if "45" in prompt_copy:
+                    prompt_copy["45"]["class_type"] = "VAEDecodeTiled"
+                    if "inputs" in prompt_copy["45"]:
+                        prompt_copy["45"]["inputs"]["tile_size"] = 512
+                        prompt_copy["45"]["inputs"]["overlap"] = 64
+
                 payload = {
                     "prompt": prompt_copy,
                     "client_id": client_id
@@ -4111,6 +4151,13 @@ async def api_creation_generate(request):
                     else:
                         dynamic_cfg = 3.0
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
+
+                # 6. Garantir VAEDecodeTiled no Node 45 para evitar estouro de memória (alloc_cpu OOM)
+                if "45" in prompt_copy:
+                    prompt_copy["45"]["class_type"] = "VAEDecodeTiled"
+                    if "inputs" in prompt_copy["45"]:
+                        prompt_copy["45"]["inputs"]["tile_size"] = 512
+                        prompt_copy["45"]["inputs"]["overlap"] = 64
 
                 payload = {
                     "prompt": prompt_copy,

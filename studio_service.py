@@ -170,8 +170,6 @@ async def handle_tester_images(request):
     """Serve imagens geradas do testador de combinações."""
     filename = request.match_info["filename"]
     target = BASE_OUTPUT_DIR / "tester" / filename
-    if not target.exists() or not target.is_file():
-        target = BASE_OUTPUT_DIR / "tester_saved" / filename
     if target.exists() and target.is_file():
         resp = web.FileResponse(target)
         resp.headers["Cache-Control"] = "no-cache, must-revalidate"
@@ -184,8 +182,6 @@ async def handle_tester_saved_images(request):
     """Serve imagens guardadas do testador de combinações."""
     filename = request.match_info["filename"]
     target = BASE_OUTPUT_DIR / "tester_saved" / filename
-    if not target.exists() or not target.is_file():
-        target = BASE_OUTPUT_DIR / "tester" / filename
     if target.exists() and target.is_file():
         resp = web.FileResponse(target)
         resp.headers["Cache-Control"] = "no-cache, must-revalidate"
@@ -477,11 +473,7 @@ def get_offline_combo_tester_status():
         valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
         t_imgs = sorted([f for f in tester_dir.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                         key=lambda f: f.stat().st_mtime, reverse=True)
-        for img in t_imgs:
-            if img.name in saved_filenames:
-                continue
-            if len(tester_images) >= 48:
-                break
+        for img in t_imgs[:48]:
             tester_images.append({
                 "filename": img.name,
                 "url": f"/tester_images/{img.name}",

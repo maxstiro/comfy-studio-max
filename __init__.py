@@ -2393,11 +2393,7 @@ async def get_tester_image(request):
         filename = request.match_info["filename"]
         target = TESTER_OUTPUT_DIR / filename
         if not target.exists() or not target.is_file():
-            fallback = TESTER_SAVED_DIR / filename
-            if fallback.exists() and fallback.is_file():
-                target = fallback
-            else:
-                return web.Response(status=404, text="Imagem não encontrada")
+            return web.Response(status=404, text="Imagem não encontrada")
         # Se o arquivo foi criado a menos de 2 segundos e tem menos de 30KB, esperar concluir gravação
         st = target.stat()
         if st.st_size < 30000 and (time.time() - st.st_mtime) < 2.0:
@@ -2786,7 +2782,7 @@ async def api_combo_tester_status(request):
         _save_saved_images_list(real_saved_filenames)
         saved_imgs_set = set(real_saved_filenames)
 
-        # 2. Coletar imagens ativas do testador (NÃO GUARDADAS, com ciclo de até 3 resorteios)
+        # 2. Coletar imagens ativas do testador (com ciclo de sobrevivência de rodadas)
         tester_images = []
         rounds_tracker = _load_rounds_tracker()
         if TESTER_OUTPUT_DIR.exists():
@@ -2794,9 +2790,6 @@ async def api_combo_tester_status(request):
             imgs = sorted([f for f in TESTER_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                           key=lambda f: f.stat().st_mtime, reverse=True)
             for img in imgs[:48]:
-                # Garante que nenhuma imagem já guardada apareça na galeria de testes
-                if img.name in saved_imgs_set:
-                    continue
                 try:
                     if img.stat().st_size < 25000:
                         continue

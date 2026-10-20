@@ -1572,6 +1572,35 @@ class PromptReviewer:
                 tags = insert_contextual(tags, plug_trig, [lora_tag, 'buttplug', 'plug'], place='after')
                 logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
 
+        # 19. Equilíbrio Dinâmico de Pesos e Anti-Burn / Anti-Supersaturação
+        # Multiplicadores excessivos (> 1.25) no SDXL / Illustrious degradam e estressam o espaço latente,
+        # causando aberrações cromáticas (pele verde-neon, tentáculos em rosa-choque, sombras esmagadas).
+        # Normaliza dinamicamente multiplicadores para a faixa segura (1.10 - 1.22) sem descaracterizar a cena.
+        def _balance_weight(match):
+            tag_name = match.group(1).strip()
+            try:
+                weight_val = float(match.group(2))
+            except ValueError:
+                return match.group(0)
+
+            # Tags de cor/textura corporal (pele, membros, asas, olhos, tentaculos)
+            chromatic_tags = ['skin', 'body', 'tentacle', 'slime', 'stone', 'fire', 'scales', 'chitin', 'hair', 'eyes', 'ears', 'horns']
+            if any(ct in tag_name.lower() for ct in chromatic_tags):
+                max_allowed = 1.15 if 'skin' in tag_name.lower() else 1.22
+            else:
+                max_allowed = 1.25
+
+            if weight_val > max_allowed:
+                logs.append(f'[Weight Balanced] Ajustado peso de ({tag_name}:{weight_val}) para ({tag_name}:{max_allowed:.2f}) para preservar harmonia cromatica.')
+                return f'({tag_name}:{max_allowed:.2f})'
+            return match.group(0)
+
+        balanced_tags = []
+        for t in tags:
+            bt = re.sub(r'\(([^:()]+):([0-9.]+)\)', _balance_weight, t)
+            balanced_tags.append(bt)
+        tags = balanced_tags
+
         reviewed_prompt = ', '.join(tags)
         log_summary = '\n'.join(logs) if logs else '[OK] Nenhum conflito detectado no prompt.'
         try:
@@ -3151,15 +3180,47 @@ async def api_combo_tester_new_test(request):
         qtd = max(1, min(6, qtd))
 
         sampled_loras = random.sample(illu_loras, min(qtd, len(illu_loras)))
-        weights_pool = [0.5, 0.6, 0.7, 0.8, 1.0]
+
+        # Harmonização Dinâmica de Pesos: evita saturação excessiva sem restringir nenhuma combinação
+        heavy_contrast_keywords = {"d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "contrast"}
+        style_keywords = {
+            "style", "pages", "comix", "comic", "journey", "dungeon", "incoth", "oil",
+            "kells", "retro", "faber", "wadu", "zynthra", "disney", "fantasia", "gothic",
+            "circuit", "midjourney", "3d_stylized", "anime_in_real", "haiz_ai", "latrans", "morii"
+        }
+
+        # Contagem de estilos para escalonamento suave
+        style_count = 0
+        for sl in sampled_loras:
+            sl_low = sl.lower()
+            if any(hc in sl_low for hc in heavy_contrast_keywords) or any(sk in sl_low for sk in style_keywords):
+                style_count += 1
 
         loras_config = []
         for sl in sampled_loras:
-            w = random.choice(weights_pool)
+            sl_low = sl.lower()
+            is_heavy = any(hc in sl_low for hc in heavy_contrast_keywords)
+            is_style = is_heavy or any(sk in sl_low for sk in style_keywords)
+
+            if is_heavy:
+                # LoRAs de alto contraste / traço preto (d4rkl1nes, flatline, ptd): faixa ideal de 0.50 a 0.65
+                w = random.choice([0.5, 0.55, 0.6, 0.65])
+            elif is_style:
+                # Quando múltiplos estilos colidem, atenua individualmente para que se misturem sem queimar o latent space
+                if style_count >= 3:
+                    w = random.choice([0.45, 0.5, 0.55])
+                elif style_count == 2:
+                    w = random.choice([0.55, 0.6, 0.65])
+                else:
+                    w = random.choice([0.65, 0.7, 0.75, 0.8])
+            else:
+                # LoRAs de pose, proporção anatômica, sliders e microdetalhes operam em força total
+                w = random.choice([0.65, 0.7, 0.75, 0.8, 0.85])
+
             loras_config.append({
                 "lora": sl,
-                "strength_model": w,
-                "strength_clip": w
+                "strength_model": round(w, 2),
+                "strength_clip": round(w, 2)
             })
 
         new_test = {
@@ -3350,6 +3411,19 @@ async def api_combo_tester_generate_set(request):
                     if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "arachne", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "spider_lower_body", "tentacles_lower_body"]):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
+
+                # 5. Escala Dinâmica de CFG (Node 44 - KSampler)
+                # Adapta o CFG para a carga de LoRAs ativos: evita estouro de saturação ou imagens lavadas
+                if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
+                    total_l_strength = sum(float(item.get("strength_model", 0.8)) for item in test_loras)
+                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in ["d4rkl1nes", "flatline", "ptd", "glowing_in_dark"]) for item in test_loras)
+                    if has_heavy_contrast or total_l_strength >= 2.0:
+                        dynamic_cfg = 4.0
+                    elif total_l_strength >= 1.3:
+                        dynamic_cfg = 4.4
+                    else:
+                        dynamic_cfg = 4.8
+                    prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
                 payload = {
                     "prompt": prompt_copy,

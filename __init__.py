@@ -709,6 +709,7 @@ def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_
     """
     Insere 'new_tag' na lista 'tags' imediatamente adjacente (antes ou depois) à tag mais
     relevante que contenha uma das 'anchor_keywords'. Evita duplicatas e mantém coerência posicional.
+    Utiliza regex de fronteira para evitar que substrings curtas (ex: 'male') casem indevidamente com 'female' ou 'muscular_female'.
     """
     if not new_tag:
         return tags
@@ -721,11 +722,21 @@ def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_
     if any(new_lower == t.lower().strip() for t in tags):
         return tags
 
+    import re
     best_idx = -1
     for i, t in enumerate(tags):
         tl = t.lower()
-        if any(ak.lower() in tl for ak in anchor_keywords):
-            best_idx = i
+        matched = False
+        for ak in anchor_keywords:
+            ak_low = ak.lower().strip()
+            if not ak_low:
+                continue
+            pattern = r'(?<![a-zA-Z0-9_])' + re.escape(ak_low) + r'(?![a-zA-Z0-9_])'
+            if re.search(pattern, tl):
+                best_idx = i
+                matched = True
+                break
+        if matched:
             break
 
     if best_idx != -1:
@@ -1512,13 +1523,20 @@ class PromptReviewer:
                 logs.append(f'[Out-of-Frame Cleanse] Removidas acoes de contato facial {purged_contacts} pois o parceiro esta fora de quadro (male_out_of_frame), evitando cabecas flutuantes deformadas.')
 
         # 18. LoRAs NSFW Especializados sob Demanda Contextual (NUNCA sorteados aleatoriamente)
-        import random
+        import random, hashlib
         full_text_lower = ' '.join(tags).lower()
 
-        # LoRA 1: Freaky Dicks (50% de chance quando 1boy|1other aparecer no prompt)
-        boy_other_match = re.search(r'\b(1boy|1other|male|partner|penis|dick)\b', full_text_lower)
+        # LoRA 1: Freaky Dicks (50% de chance quando 1boy|1other aparecer no prompt, ou 100% quando pênis/ato explícito for promptado)
+        boy_other_match = re.search(r'\b(1boy|1other|male_out_of_frame|faceless_male|large_penis|penis|dick|fdicks)\b', full_text_lower)
         if boy_other_match:
-            if random.random() < 0.50:
+            is_explicit_penis = any(re.search(r'\b' + re.escape(p) + r'\b', full_text_lower) for p in [
+                'penis', 'large_penis', 'dick', 'cock', 'glans', 'erection', 'fdicks', 'veiny_penis',
+                'vaginal_penetration', 'anal_penetration', 'deep_penetration', 'blowjob', 'fellatio', 'creampie'
+            ])
+            # Hash determinístico do prompt para consistência estrita entre o gerador e o leitor de metadados da galeria
+            prompt_hash_val = int(hashlib.md5(full_text_lower.encode('utf-8')).hexdigest()[:6], 16)
+            should_activate_fdicks = is_explicit_penis or (prompt_hash_val % 100 < 50)
+            if should_activate_fdicks:
                 if not any('1-freaky_dicks' in t.lower() for t in tags):
                     fdick_triggers = [
                         'fdicks, veiny penis, huge penis',
@@ -1533,18 +1551,19 @@ class PromptReviewer:
                     elif any(rb in full_text_lower for rb in ['robot', 'android', 'cyborg']):
                         chosen_trig = 'fdicks, robot penis'
                     else:
-                        chosen_trig = random.choice(fdick_triggers)
+                        chosen_trig = fdick_triggers[prompt_hash_val % len(fdick_triggers)]
 
-                    lora_tag = '<lora:illustrious\\nsfw\\1-Freaky_dicksv3:0.8>'
-                    tags = insert_contextual(tags, lora_tag, ['1boy', '1other', 'large_penis', 'penis', 'male'], place='after')
-                    tags = insert_contextual(tags, chosen_trig, [lora_tag, '1boy', '1other', 'penis'], place='after')
-                    logs.append(f'[NSFW LoRA 1 Injected] Freaky_dicksv3 (50% chance) acoplado adjacente ao termo masculino com trigger "{chosen_trig}".')
+                    lora_tag = '<lora:illustrious\\nsfw\\1-Freaky_dicksv3.safetensors:0.8>'
+                    penis_anchors = ['large_penis', 'penis', '1boy|1other', '1boy', '1other', 'male_out_of_frame', 'faceless_male', 'partner', 'vaginal_penetration', 'anal_penetration', 'blowjob']
+                    tags = insert_contextual(tags, lora_tag, penis_anchors, place='after')
+                    tags = insert_contextual(tags, chosen_trig, [lora_tag, 'large_penis', 'penis', '1boy|1other'], place='after')
+                    logs.append(f'[NSFW LoRA 1 Injected] Freaky_dicksv3 acoplado contextualmente ao lado do pênis/masculino com trigger "{chosen_trig}".')
 
         # LoRA 2: Masturbation with Dildo (atividades nsfw com objetos ou sex_toys)
         dildo_match = any(d in full_text_lower for d in ['dildo', 'sex_toy', 'sex toy', 'object_insertion', 'object insertion', 'vaginal object insertion', 'using_dildo', 'holding_dildo'])
         if dildo_match:
             if not any('2-masturbation with dildo' in t.lower() for t in tags):
-                lora_tag = '<lora:illustrious\\nsfw\\2-Masturbation with dildo (illustrious) v1:0.8>'
+                lora_tag = '<lora:illustrious\\nsfw\\2-Masturbation with dildo (illustrious) v1.safetensors:0.8>'
                 dildo_trig = 'dildomasturbation, sex toy, dildo, vaginal object insertion'
                 tags = insert_contextual(tags, lora_tag, ['using_dildo', 'holding_dildo', 'dildo', 'sex_toy', 'sex toy', 'insertion', 'masturbation'], place='after')
                 tags = insert_contextual(tags, dildo_trig, [lora_tag, 'dildo', 'sex_toy'], place='after')
@@ -1554,7 +1573,7 @@ class PromptReviewer:
         anus_match = any(a in full_text_lower for a in ['anus', 'spread_anus', 'spread anus', 'showing_anus', 'presenting_anus', 'ass_presentation', 'exposed_anus', 'anal_view'])
         if anus_match:
             if not any('3-spreadanusill' in t.lower() for t in tags):
-                lora_tag = '<lora:illustrious\\nsfw\\3-spreadanusill:0.8>'
+                lora_tag = '<lora:illustrious\\nsfw\\3-spreadanusill.safetensors:0.8>'
                 anus_trig = 'spreadanusill, spread anus, anus'
                 tags = insert_contextual(tags, lora_tag, ['spread_anus', 'showing_anus', 'presenting_anus', 'ass_presentation', 'anus', 'ass'], place='after')
                 tags = insert_contextual(tags, anus_trig, [lora_tag, 'anus', 'ass'], place='after')
@@ -1564,7 +1583,7 @@ class PromptReviewer:
         plug_match = any(p in full_text_lower for p in ['buttplug', 'butt_plug', 'butt plug', 'anal_plug', 'tail_plug', 'plug', 'jewel_butt_plug', 'anal_beads'])
         if plug_match:
             if not any('4-buttplugs' in t.lower() for t in tags):
-                lora_tag = '<lora:illustrious\\nsfw\\4-buttplugs:0.8>'
+                lora_tag = '<lora:illustrious\\nsfw\\4-buttplugs.safetensors:0.8>'
                 plug_trig = 'buttplug, anal object insertion, sex toy'
                 if 'jewel' in full_text_lower:
                     plug_trig = 'buttplug, jewel butt plug, anal object insertion, sex toy'
@@ -1573,9 +1592,9 @@ class PromptReviewer:
                 logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
 
         # 19. Equilíbrio Dinâmico de Pesos e Anti-Burn / Anti-Supersaturação
-        # Multiplicadores excessivos (> 1.25) no SDXL / Illustrious degradam e estressam o espaço latente,
+        # Multiplicadores excessivos (> 1.20) no SDXL / Illustrious degradam e estressam o espaço latente,
         # causando aberrações cromáticas (pele verde-neon, tentáculos em rosa-choque, sombras esmagadas).
-        # Normaliza dinamicamente multiplicadores para a faixa segura (1.10 - 1.22) sem descaracterizar a cena.
+        # Normaliza dinamicamente multiplicadores para a faixa segura (1.10 - 1.20) sem descaracterizar a cena.
         def _balance_weight(match):
             tag_name = match.group(1).strip()
             try:
@@ -1586,9 +1605,9 @@ class PromptReviewer:
             # Tags de cor/textura corporal (pele, membros, asas, olhos, tentaculos)
             chromatic_tags = ['skin', 'body', 'tentacle', 'slime', 'stone', 'fire', 'scales', 'chitin', 'hair', 'eyes', 'ears', 'horns']
             if any(ct in tag_name.lower() for ct in chromatic_tags):
-                max_allowed = 1.15 if 'skin' in tag_name.lower() else 1.22
+                max_allowed = 1.15
             else:
-                max_allowed = 1.25
+                max_allowed = 1.20
 
             if weight_val > max_allowed:
                 logs.append(f'[Weight Balanced] Ajustado peso de ({tag_name}:{weight_val}) para ({tag_name}:{max_allowed:.2f}) para preservar harmonia cromatica.')
@@ -1597,7 +1616,9 @@ class PromptReviewer:
 
         balanced_tags = []
         for t in tags:
-            bt = re.sub(r'\(([^:()]+):([0-9.]+)\)', _balance_weight, t)
+            # Achata parênteses duplos com pesos ((tag:peso)) -> (tag:peso) para evitar multiplicação quadrática
+            t_flat = re.sub(r'\(\(([^:()]+):([0-9.]+)\)\)', r'(\1:\2)', t)
+            bt = re.sub(r'\(([^:()]+):([0-9.]+)\)', _balance_weight, t_flat)
             balanced_tags.append(bt)
         tags = balanced_tags
 
@@ -2443,7 +2464,9 @@ def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
 
         RACIAL_OR_UTILITY_LORA_STEMS = {
             "alamiaxl_concept-10", "amermaidfxm_concept-10", "arobotgirls_concept-12",
-            "concept_alamiaxl", "concept_amermaidfxm", "concept_arobotgirls"
+            "concept_alamiaxl", "concept_amermaidfxm", "concept_arobotgirls",
+            "1-freaky_dicksv3", "freaky_dicks", "2-masturbation with dildo (illustrious) v1",
+            "3-spreadanusill", "4-buttplugs"
         }
 
         img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}
@@ -3406,16 +3429,24 @@ async def api_combo_tester_generate_set(request):
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
                 # 5. Escala Dinâmica de CFG (Node 44 - KSampler)
-                # Adapta o CFG para a carga de LoRAs ativos: evita estouro de saturação ou imagens lavadas
+                # Adapta o CFG para a carga de LoRAs ativos: evita estouro de saturação, artefatos de difusão e contraste queimado
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
                     total_l_strength = sum(float(item.get("strength_model", 0.8)) for item in test_loras)
-                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in ["d4rkl1nes", "flatline", "ptd", "glowing_in_dark"]) for item in test_loras)
-                    if has_heavy_contrast or total_l_strength >= 2.0:
+                    heavy_contrast_stems = [
+                        "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
+                        "3d_stylized", "oil", "shadow-circuit", "incoth", "jab_illustrious", 
+                        "retro_scifi", "retrocom1", "sarafaber"
+                    ]
+                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in test_loras)
+                    active_loras_count = len([item for item in test_loras if float(item.get("strength_model", 0.8)) > 0.1])
+
+                    # No Illustrious SDXL, múltiplos LoRAs com CFG > 4.2 fritam o espaço latente
+                    if has_heavy_contrast or total_l_strength >= 1.6 or active_loras_count >= 2:
+                        dynamic_cfg = 3.6
+                    elif total_l_strength >= 0.8 or active_loras_count == 1:
                         dynamic_cfg = 4.0
-                    elif total_l_strength >= 1.3:
-                        dynamic_cfg = 4.4
                     else:
-                        dynamic_cfg = 4.8
+                        dynamic_cfg = 4.3
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
                 payload = {

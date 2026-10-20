@@ -3322,6 +3322,19 @@ async def api_combo_tester_update_current(request):
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
+# Tabela de Resoluções Práticas e Homologadas para SDXL / Illustrious (Múltiplos de 64, ~1MP)
+PRACTICAL_SDXL_RESOLUTIONS = {
+    "9:16": {"width": 832, "height": 1344, "is_portrait": True, "label": "9:16 Celular"},
+    "16:9": {"width": 1344, "height": 768, "is_portrait": False, "label": "16:9 Wallpaper"},
+    "1:1": {"width": 1024, "height": 1024, "is_portrait": True, "label": "1:1 Quadrado"},
+    "3:4": {"width": 896, "height": 1152, "is_portrait": True, "label": "3:4 Retrato Artbook"},
+    "4:3": {"width": 1152, "height": 896, "is_portrait": False, "label": "4:3 Paisagem Clássica"},
+    "2:3": {"width": 832, "height": 1216, "is_portrait": True, "label": "2:3 Retrato Foto"},
+    "3:2": {"width": 1216, "height": 832, "is_portrait": False, "label": "3:2 Paisagem Foto"},
+    "4:5": {"width": 896, "height": 1088, "is_portrait": True, "label": "4:5 Social Feed"},
+    "21:9": {"width": 1536, "height": 640, "is_portrait": False, "label": "21:9 Cinema Ultrawide"},
+}
+
 @server.PromptServer.instance.routes.post("/api/combo_tester/generate_set")
 async def api_combo_tester_generate_set(request):
     try:
@@ -3355,32 +3368,9 @@ async def api_combo_tester_generate_set(request):
         if "2" in base_prompt and "inputs" in base_prompt["2"]:
             base_prompt["2"]["inputs"]["value"] = not is_sfw
 
-        # 2. Configurar Resolução e Formato (Node 1, 3, 4, 6, 7)
-        aspect_ratio = str(data.get("aspect_ratio", "9:16")).strip()
-        if aspect_ratio == "16:9":
-            # Wallpaper Landscape
-            if "1" in base_prompt and "inputs" in base_prompt["1"]:
-                base_prompt["1"]["inputs"]["value"] = False
-            if "4" in base_prompt and "inputs" in base_prompt["4"]:
-                base_prompt["4"]["inputs"]["value"] = 1344
-            if "7" in base_prompt and "inputs" in base_prompt["7"]:
-                base_prompt["7"]["inputs"]["value"] = 768
-        elif aspect_ratio == "1:1":
-            # Formato Quadrado
-            if "1" in base_prompt and "inputs" in base_prompt["1"]:
-                base_prompt["1"]["inputs"]["value"] = True
-            if "3" in base_prompt and "inputs" in base_prompt["3"]:
-                base_prompt["3"]["inputs"]["value"] = 1024
-            if "6" in base_prompt and "inputs" in base_prompt["6"]:
-                base_prompt["6"]["inputs"]["value"] = 1024
-        else:
-            # 9:16 Celular
-            if "1" in base_prompt and "inputs" in base_prompt["1"]:
-                base_prompt["1"]["inputs"]["value"] = True
-            if "3" in base_prompt and "inputs" in base_prompt["3"]:
-                base_prompt["3"]["inputs"]["value"] = 832
-            if "6" in base_prompt and "inputs" in base_prompt["6"]:
-                base_prompt["6"]["inputs"]["value"] = 1344
+        # 2. Configurar Resolução e Formato (Processado dinamicamente por imagem)
+        aspect_ratio_param = str(data.get("aspect_ratio", "9:16")).strip().lower()
+        is_random_ratio = aspect_ratio_param in ["random", "aleatorio", "aleatório", "var", "variado"]
 
         # 3. Configurar LoRAs (Node 47 - Power Lora Loader) e mapear triggers oficiais
         test_loras = current_test.get("loras", [])
@@ -3440,6 +3430,39 @@ async def api_combo_tester_generate_set(request):
         async with aiohttp.ClientSession() as session:
             for i in range(count):
                 prompt_copy = copy.deepcopy(base_prompt)
+
+                # Resolução & Formato Prático (aleatório por imagem ou fixado)
+                if is_random_ratio:
+                    sample_ratios = ["9:16", "16:9", "1:1", "3:4", "4:3", "2:3", "3:2", "4:5"]
+                    cur_ratio_key = random.choice(sample_ratios)
+                else:
+                    cur_ratio_key = aspect_ratio_param if aspect_ratio_param in PRACTICAL_SDXL_RESOLUTIONS else "9:16"
+
+                res_info = PRACTICAL_SDXL_RESOLUTIONS.get(cur_ratio_key, PRACTICAL_SDXL_RESOLUTIONS["9:16"])
+                cur_w = res_info["width"]
+                cur_h = res_info["height"]
+                is_portrait = res_info["is_portrait"]
+
+                # Node 1 (Switch Formato) orienta wildcards e ângulos de câmera (Retrato vs Paisagem)
+                if "1" in prompt_copy and "inputs" in prompt_copy["1"]:
+                    prompt_copy["1"]["inputs"]["value"] = is_portrait
+
+                # Nós primitivos de largura e altura
+                if is_portrait:
+                    if "3" in prompt_copy and "inputs" in prompt_copy["3"]:
+                        prompt_copy["3"]["inputs"]["value"] = cur_w
+                    if "6" in prompt_copy and "inputs" in prompt_copy["6"]:
+                        prompt_copy["6"]["inputs"]["value"] = cur_h
+                else:
+                    if "4" in prompt_copy and "inputs" in prompt_copy["4"]:
+                        prompt_copy["4"]["inputs"]["value"] = cur_w
+                    if "7" in prompt_copy and "inputs" in prompt_copy["7"]:
+                        prompt_copy["7"]["inputs"]["value"] = cur_h
+
+                # Node 43 (EmptyLatentImage) recebe a resolução exata homologada para SDXL
+                if "43" in prompt_copy and "inputs" in prompt_copy["43"]:
+                    prompt_copy["43"]["inputs"]["width"] = cur_w
+                    prompt_copy["43"]["inputs"]["height"] = cur_h
 
                 # Randomizar seeds e forcar sorteio dinâmico em todos os nós
                 for nid, n_info in prompt_copy.items():
@@ -4213,9 +4236,16 @@ async def get_combo_tester_view(request):
             <div class="control-group">
               <span style="font-size:13px; font-weight:600;">Formato:</span>
               <select id="aspect-ratio" class="select-custom">
+                <option value="random">🎲 Aleatória (Formatos SDXL)</option>
                 <option value="9:16" selected>📱 Celular 9:16 (832x1344)</option>
                 <option value="16:9">🖥️ Wallpaper 16:9 (1344x768)</option>
                 <option value="1:1">🔲 Quadrado 1:1 (1024x1024)</option>
+                <option value="3:4">🖼️ Retrato 3:4 (896x1152)</option>
+                <option value="4:3">🏞️ Paisagem 4:3 (1152x896)</option>
+                <option value="2:3">📸 Foto 2:3 (832x1216)</option>
+                <option value="3:2">🌅 Foto 3:2 (1216x832)</option>
+                <option value="4:5">📱 Social 4:5 (896x1088)</option>
+                <option value="21:9">🎬 Cinema 21:9 (1536x640)</option>
               </select>
             </div>
             <div class="control-group">

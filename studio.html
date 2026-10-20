@@ -951,8 +951,8 @@
       transition: transform 0.2s ease;
     }
     .modal-zoom-sidebar {
-      width: 380px;
-      flex: 0 0 380px;
+      width: clamp(440px, 32vw, 560px);
+      flex: 0 0 clamp(440px, 32vw, 560px);
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -974,10 +974,12 @@
       color: var(--text-muted);
       background: rgba(0, 0, 0, 0.4);
       border: 1px solid rgba(255, 255, 255, 0.06);
-      padding: 14px;
+      padding: 16px;
       border-radius: var(--radius-sm);
       overflow-y: auto;
       flex: 1;
+      display: flex;
+      flex-direction: column;
     }
     .modal-zoom-actions {
       display: flex;
@@ -2997,59 +2999,134 @@
       const grid = document.getElementById('tester-images-grid');
       if (!grid) return;
       if (!images || images.length === 0) {
-        grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem em teste gerada ainda. Clique em "Gerar Lote de Teste".</p>';
+        if (grid.getAttribute('data-empty') !== 'true') {
+          grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem em teste gerada ainda. Clique em "Gerar Lote de Teste".</p>';
+          grid.setAttribute('data-empty', 'true');
+          grid._lastFp = 'empty';
+        }
         return;
       }
-      grid.innerHTML = images.map(img => {
+      grid.removeAttribute('data-empty');
+
+      // Fingerprint para verificação profunda: se nada mudou, ZERO toque no DOM!
+      const fp = images.map(img => `${img.filename}::${img.timestamp}::${img.rounds_age}::${img.combo_name || ''}`).join('|');
+      if (grid._lastFp === fp) return;
+      grid._lastFp = fp;
+
+      const existingCards = new Map();
+      grid.querySelectorAll('.image-card[data-filename]').forEach(c => {
+        existingCards.set(c.getAttribute('data-filename'), c);
+      });
+
+      const emptyP = grid.querySelector('p');
+      if (emptyP) emptyP.remove();
+
+      const incomingFilenames = new Set(images.map(i => i.filename));
+      existingCards.forEach((c, fn) => {
+        if (!incomingFilenames.has(fn)) c.remove();
+      });
+
+      images.forEach(img => {
+        const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
+        if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
+
         let ageBadge = '';
         if (img.rounds_age === 1) {
           ageBadge = '<span style="position: absolute; top: 8px; left: 8px; background: rgba(30, 58, 138, 0.88); backdrop-filter: blur(4px); color: #93c5fd; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(147, 197, 253, 0.3); z-index: 5;">1º resorteio</span>';
         } else if (img.rounds_age === 2) {
           ageBadge = '<span style="position: absolute; top: 8px; left: 8px; background: rgba(146, 64, 14, 0.92); backdrop-filter: blur(4px); color: #fde68a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(253, 230, 138, 0.3); z-index: 5;">⚠️ Última rodada</span>';
         }
-        const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
-        if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
 
-        return `
-        <div class="image-card" data-filename="${img.filename}">
-          <div class="image-card-thumb" style="position: relative;" onclick="abrirModalZoomItem('${img.filename}', false)">
-            ${ageBadge}
-            <img src="${img.url}?t=${img.timestamp || Date.now()}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1200);">
-          </div>
-          <div class="image-card-body">
-            <div class="image-card-title" title="${img.filename}">${img.filename}</div>
-            ${effectiveCombo ? `<div style="font-size: 0.72rem; font-weight: 700; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>` : ''}
-            <div class="image-card-actions">
-              <button class="btn-star" data-filename="${img.filename}" onclick="guardarImagemTester('${img.filename}', this)">
-                ⭐ Guardar
-              </button>
-              <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨</button>
+        let card = existingCards.get(img.filename);
+        if (card) {
+          const badgeHolder = card.querySelector('.rounds-badge-holder');
+          if (badgeHolder) badgeHolder.innerHTML = ageBadge;
+          const comboEl = card.querySelector('.combo-badge-text');
+          if (comboEl) {
+            if (effectiveCombo) {
+              comboEl.textContent = `🎯 ${effectiveCombo}`;
+              comboEl.title = `Combinação: ${effectiveCombo}`;
+              comboEl.style.display = 'block';
+            } else {
+              comboEl.style.display = 'none';
+            }
+          }
+          grid.appendChild(card);
+        } else {
+          const imgSrc = `${img.url}${img.timestamp ? '?t=' + img.timestamp : ''}`;
+          const div = document.createElement('div');
+          div.className = 'image-card';
+          div.setAttribute('data-filename', img.filename);
+          div.innerHTML = `
+            <div class="image-card-thumb" style="position: relative;" onclick="abrirModalZoomItem('${img.filename}', false)">
+              <span class="rounds-badge-holder">${ageBadge}</span>
+              <img src="${imgSrc}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
             </div>
-          </div>
-        </div>
-      `}).join('');
+            <div class="image-card-body">
+              <div class="image-card-title" title="${img.filename}">${img.filename}</div>
+              <div class="combo-badge-text" style="${effectiveCombo ? '' : 'display:none;'} font-size: 0.72rem; font-weight: 700; color: #38bdf8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>
+              <div class="image-card-actions">
+                <button class="btn-star" data-filename="${img.filename}" onclick="guardarImagemTester('${img.filename}', this)">
+                  ⭐ Guardar
+                </button>
+                <button class="btn-action-icon" title="Enviar para Tratamento & Upscale" onclick="enviarParaRefinamentoUrl('${img.url}', '${img.filename}')">✨</button>
+              </div>
+            </div>
+          `;
+          grid.appendChild(div);
+        }
+      });
     }
 
     function renderSavedImages(savedList) {
       const grid = document.getElementById('saved-images-grid');
       if (!grid) return;
       if (!savedList || savedList.length === 0) {
-        grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem guardada ainda. Na aba \'Testador\', clique no botão ⭐ Guardar de qualquer imagem para transferi-la para cá.</p>';
+        if (grid.getAttribute('data-empty') !== 'true') {
+          grid.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Nenhuma imagem guardada ainda. Na aba \'Testador\', clique no botão ⭐ Guardar de qualquer imagem para transferi-la para cá.</p>';
+          grid.setAttribute('data-empty', 'true');
+          grid._lastFp = 'empty';
+        }
         return;
       }
-      grid.innerHTML = savedList.map(img => {
+      grid.removeAttribute('data-empty');
+
+      const fp = savedList.map(img => `${img.filename}::${img.timestamp}::${img.combo_name || ''}`).join('|');
+      if (grid._lastFp === fp) return;
+      grid._lastFp = fp;
+
+      const existingCards = new Map();
+      grid.querySelectorAll('.image-card[data-filename]').forEach(c => {
+        existingCards.set(c.getAttribute('data-filename'), c);
+      });
+
+      const emptyP = grid.querySelector('p');
+      if (emptyP) emptyP.remove();
+
+      const incomingFilenames = new Set(savedList.map(i => i.filename));
+      existingCards.forEach((c, fn) => {
+        if (!incomingFilenames.has(fn)) c.remove();
+      });
+
+      savedList.forEach(img => {
         const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
         if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
 
-        return `
-        <div class="image-card" data-filename="${img.filename}">
+        let card = existingCards.get(img.filename);
+        if (card) {
+          grid.appendChild(card);
+        } else {
+          const imgSrc = `${img.url}${img.timestamp ? '?t=' + img.timestamp : ''}`;
+          const div = document.createElement('div');
+          div.className = 'image-card';
+          div.setAttribute('data-filename', img.filename);
+          div.innerHTML = `
           <div class="image-card-thumb" onclick="abrirModalZoomItem('${img.filename}', true)">
-            <img src="${img.url}?t=${img.timestamp || Date.now()}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1200);">
+            <img src="${imgSrc}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
           </div>
           <div class="image-card-body">
             <div class="image-card-title" title="${img.filename}">${img.filename}</div>
 
-            <!-- Exibição Completa do Set de LoRAs e Checkpoint Usados -->
             <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 6px 8px; background: rgba(0,0,0,0.45); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);">
               ${effectiveCombo ? `<div style="font-size: 0.76rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; text-shadow: 0 0 8px rgba(56,189,248,0.4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="Combinação: ${effectiveCombo}">🎯 ${effectiveCombo}</div>` : ''}
               ${img.checkpoint ? `<div style="font-size: 0.72rem; font-weight: 700; color: #a5b4fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px;" title="Modelo: ${img.checkpoint}">📦 ${img.checkpoint}</div>` : ''}
@@ -3073,9 +3150,10 @@
               <button class="btn-action-icon" title="Excluir Permanentemente" onclick="deleteSavedImage('${img.filename}')" style="color: #f87171;">🗑️</button>
             </div>
           </div>
-        </div>
-      `;
-      }).join('');
+          `;
+          grid.appendChild(div);
+        }
+      });
     }
 
     async function deleteSavedImage(filename) {
@@ -4906,7 +4984,7 @@
         }
       }
 
-      let metaText = `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+      let metaText = `<div style="display: flex; flex-direction: column; gap: 10px; height: 100%; flex: 1;">`;
       metaText += `<div><strong>Arquivo:</strong> <span style="color: #f1f5f9; word-break: break-all;">${filename}</span></div>`;
       if (combo_name) {
         metaText += `<div><strong>Conjunto / Combinação:</strong> <span style="color: #38bdf8; font-weight: 700; background: rgba(56,189,248,0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.3);">🎯 ${combo_name}</span></div>`;
@@ -4925,12 +5003,32 @@
         metaText += `<div><strong>Seed:</strong> <code style="color: #cbd5e1; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace;">${seed}</code></div>`;
       }
       if (prompt) {
-        metaText += `<div><strong>Prompt Positivo Gerado:</strong><div style="margin-top: 4px; padding: 10px; background: rgba(0,0,0,0.55); border-radius: 6px; border: 1px solid rgba(255,255,255,0.08); font-size: 0.75rem; color: #e2e8f0; line-height: 1.45; max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: monospace;">${prompt}</div></div>`;
+        metaText += `
+          <div style="display: flex; flex-direction: column; flex: 1; min-height: 240px; margin-top: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="color: #f1f5f9; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+                <span>📝 Prompt Positivo Gerado:</span>
+              </strong>
+              <button type="button" class="btn btn-secondary btn-sm" onclick="copiarPromptModal()" style="padding: 3px 10px; font-size: 0.74rem; border-color: rgba(56,189,248,0.4); color: #38bdf8; display: inline-flex; align-items: center; gap: 5px;">
+                📋 Copiar Prompt
+              </button>
+            </div>
+            <div id="modal-prompt-content" style="flex: 1; min-height: 220px; max-height: 52vh; padding: 12px 14px; background: rgba(0,0,0,0.65); border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); font-size: 0.82rem; color: #f1f5f9; line-height: 1.55; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; user-select: text; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);">${prompt}</div>
+          </div>
+        `;
       }
       metaText += `</div>`;
       document.getElementById('modal-zoom-meta').innerHTML = metaText;
 
       document.getElementById('modal-zoom').classList.add('open');
+    }
+
+    function copiarPromptModal() {
+      const el = document.getElementById('modal-prompt-content');
+      if (el) {
+        navigator.clipboard.writeText(el.innerText || el.textContent);
+        showToast('Prompt copiado para a área de transferência!', 'success');
+      }
     }
 
     function fecharModalZoom(e) {
@@ -4971,6 +5069,10 @@
 
     // Polling ambiental para auto-atualizar a galeria do testador sem necessidade de F5
     setInterval(async () => {
+      // Se o modal de zoom estiver aberto para o usuário inspecionar ou ler o prompt, não roda polling de status
+      const modalZoom = document.getElementById('modal-zoom');
+      if (modalZoom && modalZoom.classList.contains('open')) return;
+
       if (state.activeTab === 'tab-tester' && !testerWatcherInterval) {
         try {
           const res = await fetch('/api/combo_tester/status?t=' + Date.now());
@@ -4987,7 +5089,7 @@
           }
         } catch (e) {}
       }
-    }, 3500);
+    }, 4000);
 
     // Iniciar tudo ao carregar
     

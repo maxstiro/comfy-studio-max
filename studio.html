@@ -2982,14 +2982,20 @@
     function abrirModalZoomItem(filename, isSaved = false) {
       let img = null;
       if (isSaved) {
-        img = (state.savedGallery || []).find(x => x.filename === filename) || (state.images || []).find(x => x.filename === filename);
+        img = (state.savedGallery || []).find(x => x.filename === filename);
       } else {
+        img = (state.images || []).find(x => x.filename === filename);
+      }
+      if (!img) {
         img = (state.images || []).find(x => x.filename === filename) || (state.savedGallery || []).find(x => x.filename === filename);
       }
+      const ts = img?.timestamp || Date.now();
+      const baseurl = img ? img.url : (isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`);
+      const freshUrl = `${baseurl}?t=${ts}`;
       if (img) {
-        abrirModalZoom(img.url, img.filename, img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '', isSaved);
+        abrirModalZoom(freshUrl, img.filename, img.prompt || '', img.seed || '', img.checkpoint || '', img.loras || [], img.combo_name || '', isSaved);
       } else {
-        abrirModalZoom(isSaved ? `/tester_saved_images/${filename}` : `/tester_images/${filename}`, filename, '', '', '', [], '', isSaved);
+        abrirModalZoom(freshUrl, filename, '', '', '', [], '', isSaved);
       }
     }
 
@@ -3037,8 +3043,15 @@
           ageBadge = '<span style="position: absolute; top: 8px; left: 8px; background: rgba(146, 64, 14, 0.92); backdrop-filter: blur(4px); color: #fde68a; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; border: 1px solid rgba(253, 230, 138, 0.3); z-index: 5;">⚠️ Última rodada</span>';
         }
 
+        const currentTs = String(img.timestamp || '');
+        const imgSrc = `${img.url}?t=${currentTs}`;
         let card = existingCards.get(img.filename);
         if (card) {
+          const cardImg = card.querySelector('img');
+          if (cardImg && cardImg.getAttribute('data-ts') !== currentTs) {
+            cardImg.setAttribute('data-ts', currentTs);
+            cardImg.src = imgSrc;
+          }
           const badgeHolder = card.querySelector('.rounds-badge-holder');
           if (badgeHolder) badgeHolder.innerHTML = ageBadge;
           const comboEl = card.querySelector('.combo-badge-text');
@@ -3053,14 +3066,13 @@
           }
           grid.appendChild(card);
         } else {
-          const imgSrc = `${img.url}${img.timestamp ? '?t=' + img.timestamp : ''}`;
           const div = document.createElement('div');
           div.className = 'image-card';
           div.setAttribute('data-filename', img.filename);
           div.innerHTML = `
             <div class="image-card-thumb" style="position: relative;" onclick="abrirModalZoomItem('${img.filename}', false)">
               <span class="rounds-badge-holder">${ageBadge}</span>
-              <img src="${imgSrc}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
+              <img src="${imgSrc}" data-ts="${currentTs}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
             </div>
             <div class="image-card-body">
               <div class="image-card-title" title="${img.filename}">${img.filename}</div>
@@ -3112,17 +3124,23 @@
         const effectiveCombo = img.combo_name || comboNameMemory.get(img.filename) || '';
         if (img.combo_name) comboNameMemory.set(img.filename, img.combo_name);
 
+        const currentTs = String(img.timestamp || '');
+        const imgSrc = `${img.url}?t=${currentTs}`;
         let card = existingCards.get(img.filename);
         if (card) {
+          const cardImg = card.querySelector('img');
+          if (cardImg && cardImg.getAttribute('data-ts') !== currentTs) {
+            cardImg.setAttribute('data-ts', currentTs);
+            cardImg.src = imgSrc;
+          }
           grid.appendChild(card);
         } else {
-          const imgSrc = `${img.url}${img.timestamp ? '?t=' + img.timestamp : ''}`;
           const div = document.createElement('div');
           div.className = 'image-card';
           div.setAttribute('data-filename', img.filename);
           div.innerHTML = `
           <div class="image-card-thumb" onclick="abrirModalZoomItem('${img.filename}', true)">
-            <img src="${imgSrc}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
+            <img src="${imgSrc}" data-ts="${currentTs}" loading="lazy" onload="detectImageCardAspect(this)" onerror="this.onerror=null; setTimeout(() => { this.src = '${img.url}?retry=' + Date.now(); }, 1500);">
           </div>
           <div class="image-card-body">
             <div class="image-card-title" title="${img.filename}">${img.filename}</div>
@@ -4951,7 +4969,10 @@
     function abrirModalZoom(url, filename, prompt = '', seed = '', checkpoint = '', loras = [], combo_name = '', isSaved = false) {
       state.modalImage = { url, filename, prompt, seed, checkpoint, loras, combo_name, isSaved };
       const imgEl = document.getElementById('modal-zoom-img');
-      if (imgEl) imgEl.src = url;
+      if (imgEl) {
+        imgEl.removeAttribute('src'); // Limpa imediatamente para não piscar ou exibir imagem anterior do modal
+        imgEl.src = url;
+      }
       const titleEl = document.getElementById('modal-zoom-title');
       if (titleEl) titleEl.innerText = filename;
       const dlBtn = document.getElementById('btn-modal-download');

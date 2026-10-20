@@ -2765,6 +2765,9 @@ async def api_combo_tester_status(request):
             imgs = sorted([f for f in TESTER_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                           key=lambda f: f.stat().st_mtime, reverse=True)
             for img in imgs[:48]:
+                # Garante que nenhuma imagem já guardada apareça na galeria de testes
+                if img.name in saved_imgs_set:
+                    continue
                 try:
                     if img.stat().st_size < 25000:
                         continue

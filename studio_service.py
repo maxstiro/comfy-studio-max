@@ -449,12 +449,14 @@ def get_offline_combo_tester_status():
             pass
 
     saved_gallery = []
+    saved_filenames = set()
     tester_saved_dir = BASE_OUTPUT_DIR / "tester_saved"
     if tester_saved_dir.exists():
         valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
         s_imgs = sorted([f for f in tester_saved_dir.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                         key=lambda f: f.stat().st_mtime, reverse=True)
         for img in s_imgs:
+            saved_filenames.add(img.name)
             im_meta = saved_metadata.get(img.name, {})
             saved_gallery.append({
                 "filename": img.name,
@@ -475,7 +477,11 @@ def get_offline_combo_tester_status():
         valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
         t_imgs = sorted([f for f in tester_dir.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
                         key=lambda f: f.stat().st_mtime, reverse=True)
-        for img in t_imgs[:48]:
+        for img in t_imgs:
+            if img.name in saved_filenames:
+                continue
+            if len(tester_images) >= 48:
+                break
             tester_images.append({
                 "filename": img.name,
                 "url": f"/tester_images/{img.name}",

@@ -18,22 +18,41 @@ if not (COMFY_ROOT / "main.py").exists() and pathlib.Path(r"D:\IA\ComfyUI").exis
 # --- TRAVA DE INSTÂNCIA ÚNICA (PREVINE EXECUÇÃO DUPLICADA) ---
 if os.environ.get("COMFY_NO_LOCK") != "1":
     LOCK_PATH = COMFY_ROOT / "user" / "comfy.lock"
-    _lock_file = None
 
-    try:
-        LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _lock_file = open(LOCK_PATH, "a+")
-        _lock_file.seek(0)
-        msvcrt.locking(_lock_file.fileno(), msvcrt.LK_NBLCK, 1)
-        _lock_file.truncate(0)
-        _lock_file.write(f"PID: {os.getpid()}\n")
-        _lock_file.flush()
-    except (IOError, PermissionError, OSError):
+    def _is_pid_running_comfy(pid_str):
+        try:
+            pid = int(pid_str)
+            if pid == os.getpid():
+                return False
+            import psutil
+            p = psutil.Process(pid)
+            return p.is_running() and ("python" in p.name().lower())
+        except Exception:
+            return False
+
+    is_already_running = False
+    if LOCK_PATH.exists():
+        try:
+            content = LOCK_PATH.read_text(encoding="utf-8", errors="ignore").strip()
+            if "PID:" in content:
+                recorded_pid = content.split("PID:")[-1].strip()
+                if _is_pid_running_comfy(recorded_pid):
+                    is_already_running = True
+        except Exception:
+            pass
+
+    if is_already_running:
         print("\n" + "=" * 70)
         print("[BLOQUEIO] JA EXISTE UMA INSTANCIA DO COMFYUI EM EXECUCAO!")
         print("Abortando esta segunda execucao para evitar conflito de portas e GPU.")
         print("=" * 70 + "\n")
         sys.exit(0)
+    else:
+        try:
+            LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+            LOCK_PATH.write_text(f"PID: {os.getpid()}\n", encoding="utf-8")
+        except Exception:
+            pass
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
@@ -2237,6 +2256,129 @@ def get_sampleable_loras(refresh=False):
     ])]
     return sampleable if sampleable else all_l
 
+LORA_CATEGORIES = {
+    "contrast": [
+        "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "shadow-circuit",
+        "between pages", "g0thic"
+    ],
+    "style_comic": [
+        "comics_gff", "comiks", "jmoxcomix", "retrocom", "sunstone"
+    ],
+    "style_cartoon": [
+        "disney", "carto4on", "fantasia"
+    ],
+    "style_3d": [
+        "3d_stylized", "ani2rel", "anime_in_real"
+    ],
+    "style_painterly": [
+        "oil", "latrans", "paulinaapc"
+    ],
+    "enhancer": [
+        "addmicrodetails", "hyperrealistic", "smooth_booster", "748cm", "realism_enhancer", "stabilizer"
+    ],
+    "lighting": [
+        "s1 dramatic lighting", "s1_dram", "lighting"
+    ],
+    "dynamics": [
+        "posingdynamics", "the_look"
+    ],
+    "artistic_distinct": [
+        "secretofkells", "kells", "sketch", "retro_scifi", "fantasyforge", "0nz9km",
+        "rabbithole", "dungeon_squad", "afkarena", "afkjourney", "nv_kawaiitech",
+        "sarafaber", "wadu", "zynthra", "haiz_ai", "incoth", "chxrrygxg",
+        "ickpot", "jab_illustrious", "jj_v2", "moriimee", "rapscallion", "d5jr09"
+    ]
+}
+
+def categorize_lora(lora_name):
+    """Retorna a categoria funcional e estética de um LoRA para amostragem balanceada e harmoniosa."""
+    lname = str(lora_name).lower()
+    for cat, keywords in LORA_CATEGORIES.items():
+        if any(kw in lname for kw in keywords):
+            return cat
+    return "artistic_distinct"
+
+def sample_harmonized_loras(available_loras, qtd=3):
+    """
+    Sorteia LoRAs com categorização estética e hierarquia de papéis:
+    - Previne concorrência destrutiva (máx 1 alto contraste, 1 cartoon, 1 comic, 1 3d, 1 pintura a óleo).
+    - Distribui papéis assimétricos com manifestação clara do LoRA principal (0.75 a 0.85).
+    - Varia os pesos organicamente a cada sorteio, acabando com valores fixos em 0.50.
+    """
+    import random
+    if not available_loras:
+        return []
+
+    qtd = max(1, min(len(available_loras), qtd))
+    chosen_loras = []
+    used_categories = set()
+    single_allowed_cats = {"contrast", "style_comic", "style_cartoon", "style_3d", "style_painterly"}
+
+    for slot_idx in range(qtd):
+        # Filtra candidatos respeitando exclusão de categorias concorrentes
+        candidates = []
+        for lora in available_loras:
+            if lora in [c["lora"] for c in chosen_loras]:
+                continue
+            cat = categorize_lora(lora)
+            if cat in used_categories and cat in single_allowed_cats:
+                continue
+            candidates.append(lora)
+
+        if not candidates:
+            # Fallback seguro caso as exclusões esgotem o subconjunto
+            candidates = [l for l in available_loras if l not in [c["lora"] for c in chosen_loras]]
+            if not candidates:
+                break
+
+        # Sorteio ponderado por slot e calibração de pesos
+        if slot_idx == 0:
+            # Slot 1: Protagonista / Estilo Principal marcante
+            preferred = [l for l in candidates if categorize_lora(l) not in ["enhancer", "contrast", "dynamics"]]
+            chosen = random.choice(preferred if preferred else candidates)
+            cat = categorize_lora(chosen)
+            if cat == "contrast":
+                weight = random.choice([0.60, 0.65, 0.70])
+            else:
+                weight = random.choice([0.75, 0.80, 0.85])
+        elif slot_idx == 1:
+            # Slot 2: Co-protagonista / Modificador de Tom / Iluminação
+            preferred = [l for l in candidates if categorize_lora(l) not in ["enhancer"]]
+            chosen = random.choice(preferred if preferred else candidates)
+            cat = categorize_lora(chosen)
+            if cat == "contrast":
+                weight = random.choice([0.45, 0.50, 0.55])
+            elif cat in ["lighting", "dynamics"]:
+                weight = random.choice([0.55, 0.60, 0.65])
+            else:
+                weight = random.choice([0.55, 0.60, 0.65, 0.70])
+        elif slot_idx == 2:
+            # Slot 3: Acento / Detalhe / Enhancer / Posing / Iluminação
+            preferred = [l for l in candidates if categorize_lora(l) in ["enhancer", "lighting", "dynamics"]]
+            chosen = random.choice(preferred if preferred else candidates)
+            cat = categorize_lora(chosen)
+            if cat == "contrast":
+                weight = random.choice([0.40, 0.45, 0.50])
+            elif cat == "enhancer":
+                weight = random.choice([0.40, 0.45, 0.50, 0.55])
+            else:
+                weight = random.choice([0.45, 0.50, 0.55])
+        else:
+            # Slot 4+: Pesos complementares moderados
+            chosen = random.choice(candidates)
+            cat = categorize_lora(chosen)
+            weight = random.choice([0.35, 0.40, 0.45])
+
+        used_categories.add(cat)
+        chosen_loras.append({
+            "lora": chosen,
+            "category": cat,
+            "strength_model": round(weight, 2),
+            "strength_clip": round(weight, 2)
+        })
+
+    return chosen_loras
+
 
 class ApprovedCombosLoader:
     """
@@ -3216,60 +3358,8 @@ async def api_combo_tester_new_test(request):
             qtd = 3
         qtd = max(1, min(6, qtd))
 
-        sampled_loras = random.sample(illu_loras, min(qtd, len(illu_loras)))
-
-        # Harmonização Dinâmica de Pesos: evita saturação excessiva sem restringir nenhuma combinação
-        heavy_contrast_keywords = {"d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "contrast"}
-        style_keywords = {
-            "style", "pages", "comix", "comic", "journey", "dungeon", "incoth", "oil",
-            "kells", "retro", "faber", "wadu", "zynthra", "disney", "fantasia", "gothic",
-            "circuit", "midjourney", "3d_stylized", "anime_in_real", "haiz_ai", "latrans", "morii"
-        }
-
-        # Contagem de estilos para escalonamento suave
-        style_count = 0
-        for sl in sampled_loras:
-            sl_low = sl.lower()
-            if any(hc in sl_low for hc in heavy_contrast_keywords) or any(sk in sl_low for sk in style_keywords):
-                style_count += 1
-
-        # Limite proporcional de peso máximo por LoRA conforme a quantidade de LoRAs
-        if qtd <= 1:
-            max_lora_cap = 1.00
-        elif qtd == 2:
-            max_lora_cap = 0.70
-        elif qtd == 3:
-            max_lora_cap = 0.50
-        else:
-            max_lora_cap = round(max(0.25, 1.45 / qtd), 2)
-
-        loras_config = []
-        for sl in sampled_loras:
-            sl_low = sl.lower()
-            is_heavy = any(hc in sl_low for hc in heavy_contrast_keywords)
-            is_style = is_heavy or any(sk in sl_low for sk in style_keywords)
-
-            if is_heavy:
-                # LoRAs de alto contraste / traço preto (d4rkl1nes, flatline, ptd): faixa ideal de 0.45 a 0.60
-                w = random.choice([0.45, 0.5, 0.55, 0.6])
-            elif is_style:
-                # Quando múltiplos estilos colidem, atenua individualmente para que se misturem sem queimar o latent space
-                if style_count >= 3:
-                    w = random.choice([0.4, 0.45, 0.5])
-                elif style_count == 2:
-                    w = random.choice([0.5, 0.55, 0.6])
-                else:
-                    w = random.choice([0.65, 0.7, 0.75, 0.8])
-            else:
-                # LoRAs de pose, proporção anatômica, sliders e microdetalhes operam em força total
-                w = random.choice([0.65, 0.7, 0.75, 0.8, 0.85])
-
-            w = min(w, max_lora_cap)
-            loras_config.append({
-                "lora": sl,
-                "strength_model": round(w, 2),
-                "strength_clip": round(w, 2)
-            })
+        # Sorteio Inteligente com Categorização e Variação Assimétrica de Pesos
+        loras_config = sample_harmonized_loras(illu_loras, qtd=qtd)
 
         new_test = {
             "test_id": f"test_{int(datetime.datetime.now().timestamp())}",
@@ -3376,30 +3466,45 @@ async def api_combo_tester_generate_set(request):
         test_loras = current_test.get("loras", [])
         active_loras_count = len([item for item in test_loras if item.get("lora") and float(item.get("strength_model", 0.8)) > 0.05])
 
-        # Limite de peso proporcional à quantidade de LoRAs ativos (1 LoRA: até 1.00 | 2 LoRAs: até 0.70 | 3 LoRAs: até 0.50 | 4+: até 0.40)
+        # Orçamento Total Combinado: permite manifestação expressiva no LoRA dominante (0.75 - 0.85) com variação assimétrica,
+        # evitando o achatamento estático em 0.50 e prevenindo sobrecarga cumulativa no latent space.
         if active_loras_count <= 1:
-            max_lora_strength = 1.00
+            max_total_budget = 1.10
+            single_cap = 1.00
         elif active_loras_count == 2:
-            max_lora_strength = 0.70
+            max_total_budget = 1.60
+            single_cap = 0.90
         elif active_loras_count == 3:
-            max_lora_strength = 0.50
+            max_total_budget = 1.95
+            single_cap = 0.85
         else:
-            max_lora_strength = round(max(0.25, 1.45 / active_loras_count), 2)
+            max_total_budget = 2.15
+            single_cap = 0.80
+
+        # Primeiro aplica teto individual de segurança
+        clamped_loras = []
+        for item in test_loras:
+            orig_s = float(item.get("strength_model", 0.8))
+            eff_s = min(orig_s, single_cap)
+            clamped_loras.append((item, eff_s))
+
+        # Se a soma total ultrapassar o orçamento do modelo, escala proporcionalmente preservando a hierarquia de forças
+        total_sum = sum(s for _, s in clamped_loras if s > 0.05)
+        scale_factor = (max_total_budget / total_sum) if total_sum > max_total_budget else 1.0
 
         lora_triggers = []
         eff_test_loras = []
-        for item in test_loras:
+        for item, eff_s in clamped_loras:
             l_name = item.get("lora")
             if l_name:
                 trig = find_lora_trigger(l_name)
                 if trig and trig not in lora_triggers:
                     lora_triggers.append(trig)
-                orig_s = float(item.get("strength_model", 0.8))
-                eff_s = round(min(orig_s, max_lora_strength), 2)
+                scaled_s = round(eff_s * scale_factor, 2)
                 eff_test_loras.append({
                     **item,
-                    "strength_model": eff_s,
-                    "strength_clip": eff_s
+                    "strength_model": scaled_s,
+                    "strength_clip": scaled_s
                 })
 
         if "47" in base_prompt and "inputs" in base_prompt["47"]:

@@ -3959,6 +3959,8 @@ async def api_combo_tester_generate_set(request):
                     if "inputs" in prompt_copy["45"]:
                         prompt_copy["45"]["inputs"]["tile_size"] = 512
                         prompt_copy["45"]["inputs"]["overlap"] = 64
+                        prompt_copy["45"]["inputs"]["temporal_size"] = 64
+                        prompt_copy["45"]["inputs"]["temporal_overlap"] = 8
 
                 payload = {
                     "prompt": prompt_copy,
@@ -3968,9 +3970,17 @@ async def api_combo_tester_generate_set(request):
                     async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:
                         if resp.status != 200:
                             err_text = await resp.text()
-                            print(f"[ComboTester] Aviso ao enfileirar imagem {i+1}: {err_text}")
+                            print(f"[ComboTester] Erro ao enfileirar imagem {i+1}: {err_text}")
+                            return web.json_response({
+                                "success": False,
+                                "error": f"Erro de validação no ComfyUI: {err_text}"
+                            }, status=400)
                 except Exception as req_err:
                     print(f"[ComboTester] Erro na requisição {i+1}: {req_err}")
+                    return web.json_response({
+                        "success": False,
+                        "error": f"Erro de conexão com ComfyUI: {req_err}"
+                    }, status=500)
                 await asyncio.sleep(0.15)
 
         return web.json_response({
@@ -4158,13 +4168,28 @@ async def api_creation_generate(request):
                     if "inputs" in prompt_copy["45"]:
                         prompt_copy["45"]["inputs"]["tile_size"] = 512
                         prompt_copy["45"]["inputs"]["overlap"] = 64
+                        prompt_copy["45"]["inputs"]["temporal_size"] = 64
+                        prompt_copy["45"]["inputs"]["temporal_overlap"] = 8
 
                 payload = {
                     "prompt": prompt_copy,
                     "client_id": client_id
                 }
-                async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:
-                    pass
+                try:
+                    async with session.post(f"http://127.0.0.1:{port}/prompt", json=payload) as resp:
+                        if resp.status != 200:
+                            err_text = await resp.text()
+                            print(f"[Creation] Erro ao enfileirar imagem {i+1}: {err_text}")
+                            return web.json_response({
+                                "success": False,
+                                "error": f"Erro de validação no ComfyUI: {err_text}"
+                            }, status=400)
+                except Exception as req_err:
+                    print(f"[Creation] Erro na requisição {i+1}: {req_err}")
+                    return web.json_response({
+                        "success": False,
+                        "error": f"Erro de conexão com ComfyUI: {req_err}"
+                    }, status=500)
                 await asyncio.sleep(0.15)
 
         return web.json_response({

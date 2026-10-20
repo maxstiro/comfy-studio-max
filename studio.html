@@ -6251,18 +6251,26 @@
 
       let metaText = `<div style="display: flex; flex-direction: column; gap: 10px; height: 100%; flex: 1;">`;
       metaText += `<div><strong>Arquivo:</strong> <span style="color: #f1f5f9; word-break: break-all;">${filename}</span></div>`;
-      if (combo_name) {
-        metaText += `<div><strong>Conjunto / Combinação:</strong> <span style="color: #38bdf8; font-weight: 700; background: rgba(56,189,248,0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.3);">🎯 ${combo_name}</span></div>`;
-      }
-      if (checkpoint) {
-        metaText += `<div><strong>Modelo Checkpoint:</strong> 📦 <span style="color: #a5b4fc; font-weight: 600;">${checkpoint}</span></div>`;
-      }
-      if (loras && loras.length > 0) {
-        const lorasListHtml = loras.map(l => {
-          const lName = l.friendly_name || (l.lora || '').split('\\').pop().split('/').pop().replace('.safetensors', '');
-          return `<span style="display: inline-flex; align-items: center; gap: 5px; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 4px; padding: 2px 7px; margin: 2px; font-size: 0.74rem; color: #c7d2fe;">⚡ ${lName} <span style="color: #38bdf8; font-weight: 700; background: rgba(0,0,0,0.3); padding: 0 4px; border-radius: 3px;">${l.strength_model}</span></span>`;
-        }).join('');
-        metaText += `<div><strong>LoRAs da Combinação:</strong><div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">${lorasListHtml}</div></div>`;
+      const hasSavedPreset = Boolean(
+        combo_name && 
+        (state.approvedCombos || []).some(p => p.name === combo_name || String(p.id) === String(combo_name))
+      );
+      if (isSaved && !hasSavedPreset) {
+        metaText += `<div><strong>Preset:</strong> <span style="font-size: 0.78rem; font-weight: 700; color: #94a3b8; font-style: italic; background: rgba(0,0,0,0.35); padding: 3px 8px; border-radius: 4px; border: 1px dashed rgba(255,255,255,0.15);">lostPreset</span></div>`;
+      } else {
+        if (combo_name) {
+          metaText += `<div><strong>Conjunto / Combinação:</strong> <span style="color: #38bdf8; font-weight: 700; background: rgba(56,189,248,0.15); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.3);">🎯 ${combo_name}</span></div>`;
+        }
+        if (checkpoint) {
+          metaText += `<div><strong>Modelo Checkpoint:</strong> 📦 <span style="color: #a5b4fc; font-weight: 600;">${checkpoint}</span></div>`;
+        }
+        if (loras && loras.length > 0) {
+          const lorasListHtml = loras.map(l => {
+            const lName = l.friendly_name || (l.lora || '').split('\\').pop().split('/').pop().replace('.safetensors', '');
+            return `<span style="display: inline-flex; align-items: center; gap: 5px; background: rgba(99, 102, 241, 0.18); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 4px; padding: 2px 7px; margin: 2px; font-size: 0.74rem; color: #c7d2fe;">⚡ ${lName} <span style="color: #38bdf8; font-weight: 700; background: rgba(0,0,0,0.3); padding: 0 4px; border-radius: 3px;">${l.strength_model}</span></span>`;
+          }).join('');
+          metaText += `<div><strong>LoRAs da Combinação:</strong><div style="margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px;">${lorasListHtml}</div></div>`;
+        }
       }
       if (seed) {
         metaText += `<div><strong>Seed:</strong> <code style="color: #cbd5e1; background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-family: monospace;">${seed}</code></div>`;

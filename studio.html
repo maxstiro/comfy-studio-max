@@ -2656,6 +2656,24 @@
     </div>
   </div>
 
+  <!-- MODAL GLOBAL DE CONFIRMAÇÃO DO SISTEMA -->
+  <div id="global-confirm-modal" class="modal-overlay" style="z-index: 100000;" onclick="if(event.target === this) window._globalConfirmResolve && window._globalConfirmResolve(false)">
+    <div class="modal-content" style="max-width: 440px; background: #0f172a; border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; box-shadow: 0 20px 45px rgba(0,0,0,0.8); backdrop-filter: blur(16px); padding: 22px;" onclick="event.stopPropagation()">
+      <button class="modal-close" id="global-confirm-close-btn" title="Fechar" style="top: 14px; right: 14px;">×</button>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <div id="global-confirm-icon" style="font-size: 1.5rem; line-height: 1;">⚠️</div>
+        <h3 id="global-confirm-title" style="font-size: 1.15rem; font-weight: 600; margin: 0; color: #ef4444;">Confirmar Ação</h3>
+      </div>
+      <div id="global-confirm-msg" style="font-size: 0.92rem; color: #cbd5e1; margin-bottom: 20px; line-height: 1.5; word-break: break-word;">
+        Tem certeza que deseja prosseguir?
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" id="global-confirm-cancel-btn" class="btn btn-secondary btn-sm" style="padding: 7px 18px; border-radius: 8px;">Cancelar</button>
+        <button type="button" id="global-confirm-ok-btn" class="btn btn-danger btn-sm" style="padding: 7px 18px; border-radius: 8px;">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL DE ESCOLHA DE CAPA PARA PRESET -->
   <div id="modal-choose-preset-thumb" class="modal-overlay" onclick="fecharModalEscolherCapa()">
     <div class="modal-content" style="max-width: 780px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
@@ -2706,6 +2724,87 @@
   <div id="toast-container"></div>
 
   <script>
+    // UTILITÁRIO DE ESCAPE HTML
+    function escapeHtml(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // MODAL DE CONFIRMAÇÃO UNIVERSAL (Substitui o window.confirm nativo)
+    function showConfirmDialog(options = {}) {
+      const opts = typeof options === 'string' ? { message: options } : (options || {});
+      const title = opts.title || 'Confirmar Ação';
+      const message = opts.message || 'Tem certeza que deseja prosseguir?';
+      const confirmText = opts.confirmText || 'Confirmar';
+      const cancelText = opts.cancelText || 'Cancelar';
+      const isDanger = opts.isDanger !== false;
+      const icon = opts.icon || (isDanger ? '🗑️' : '⚠️');
+
+      return new Promise((resolve) => {
+        const modal = document.getElementById('global-confirm-modal');
+        if (!modal) {
+          resolve(window.confirm(message));
+          return;
+        }
+
+        const titleEl = document.getElementById('global-confirm-title');
+        const msgEl = document.getElementById('global-confirm-msg');
+        const iconEl = document.getElementById('global-confirm-icon');
+        const okBtn = document.getElementById('global-confirm-ok-btn');
+        const cancelBtn = document.getElementById('global-confirm-cancel-btn');
+        const closeBtn = document.getElementById('global-confirm-close-btn');
+
+        if (titleEl) {
+          titleEl.textContent = title;
+          titleEl.style.color = isDanger ? '#ef4444' : '#38bdf8';
+        }
+        if (iconEl) iconEl.textContent = icon;
+        if (msgEl) msgEl.innerHTML = message;
+        if (okBtn) {
+          okBtn.textContent = confirmText;
+          okBtn.className = isDanger ? 'btn btn-danger btn-sm' : 'btn btn-primary btn-sm';
+          okBtn.style.padding = '7px 18px';
+          okBtn.style.borderRadius = '8px';
+        }
+        if (cancelBtn) cancelBtn.textContent = cancelText;
+
+        let handled = false;
+        function finish(val) {
+          if (handled) return;
+          handled = true;
+          window._globalConfirmResolve = null;
+          modal.classList.remove('open');
+          document.removeEventListener('keydown', onKeyDown);
+          resolve(val);
+        }
+
+        function onKeyDown(e) {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            finish(false);
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            finish(true);
+          }
+        }
+
+        window._globalConfirmResolve = finish;
+        okBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+        if (closeBtn) closeBtn.onclick = () => finish(false);
+
+        document.addEventListener('keydown', onKeyDown);
+        modal.classList.add('open');
+        setTimeout(() => okBtn.focus(), 50);
+      });
+    }
+    window.showConfirmDialog = showConfirmDialog;
+
     // ESTADO GLOBAL DA APLICAÇÃO
     const state = {
       activeTab: 'tab-tester',
@@ -3719,7 +3818,14 @@
     }
 
     async function deleteSavedImage(filename) {
-      if (!confirm(`Deseja realmente excluir permanentemente a imagem guardada '${filename}'?`)) return;
+      const ok = await showConfirmDialog({
+        title: 'Excluir Imagem Guardada',
+        icon: '🗑️',
+        message: `Deseja realmente excluir permanentemente a imagem guardada <strong>${escapeHtml(filename)}</strong>?`,
+        confirmText: 'Excluir Definitivamente',
+        isDanger: true
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/api/combo_tester/delete_saved_image', {
           method: 'POST',
@@ -3739,7 +3845,14 @@
     }
 
     async function deleteTesterImage(filename) {
-      if (!confirm(`Deseja realmente excluir a imagem de teste '${filename}'?`)) return;
+      const ok = await showConfirmDialog({
+        title: 'Excluir Imagem de Teste',
+        icon: '🗑️',
+        message: `Deseja realmente excluir a imagem de teste <strong>${escapeHtml(filename)}</strong>?<br><span style="font-size: 0.8rem; color: #94a3b8;">Ela será removida apenas da galeria de testes.</span>`,
+        confirmText: 'Excluir da Galeria',
+        isDanger: true
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/api/combo_tester/delete_test_image', {
           method: 'POST',
@@ -4420,7 +4533,14 @@
     }
 
     async function deletarPreset(id) {
-      if (!confirm('Deseja realmente excluir este preset?')) return;
+      const ok = await showConfirmDialog({
+        title: 'Excluir Preset Aprovado',
+        icon: '🗑️',
+        message: 'Deseja realmente excluir este preset? Ele deixará de aparecer nos workflows e seletores.',
+        confirmText: 'Excluir Preset',
+        isDanger: true
+      });
+      if (!ok) return;
       try {
         await fetch('/api/combo_tester/preset/delete', {
           method: 'POST',
@@ -6118,9 +6238,14 @@
     }
 
     async function excluirImagemStudio(filename, tabType) {
-      if (!confirm(`Tem certeza que deseja excluir a imagem "${filename}"? Ela será removida fisicamente do disco.`)) {
-        return;
-      }
+      const ok = await showConfirmDialog({
+        title: 'Excluir Imagem do Studio',
+        icon: '🗑️',
+        message: `Tem certeza que deseja excluir a imagem <strong>${escapeHtml(filename)}</strong>?<br><span style="font-size: 0.8rem; color: #94a3b8;">Ela será removida fisicamente do disco.</span>`,
+        confirmText: 'Excluir do Disco',
+        isDanger: true
+      });
+      if (!ok) return;
       try {
         const res = await fetch('/api/studio/delete_image', {
           method: 'POST',

@@ -342,6 +342,19 @@ async def get_ha_view(request):
       </div>
     </div>
 
+    <!-- Modal Custom de Confirmação -->
+    <div id="ha-confirm-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:999999; align-items:center; justify-content:center; padding:20px;">
+      <div style="background:#0f172a; border:1px solid rgba(255,255,255,0.15); border-radius:14px; max-width:400px; width:100%; padding:22px; box-shadow:0 20px 40px rgba(0,0,0,0.8); text-align:center;">
+        <div id="ha-confirm-icon" style="font-size:2rem; margin-bottom:8px;">⚠️</div>
+        <h3 id="ha-confirm-title" style="margin:0 0 10px 0; font-size:1.15rem; color:#f87171;">Confirmar Ação</h3>
+        <p id="ha-confirm-msg" style="margin:0 0 18px 0; font-size:0.9rem; color:#cbd5e1; line-height:1.4;"></p>
+        <div style="display:flex; justify-content:center; gap:10px;">
+          <button id="ha-confirm-cancel" style="background:#334155; color:#fff; border:none; border-radius:8px; padding:7px 16px; cursor:pointer; font-weight:500;">Cancelar</button>
+          <button id="ha-confirm-ok" style="background:#ef4444; color:#fff; border:none; border-radius:8px; padding:7px 16px; cursor:pointer; font-weight:600;">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
     <img id="img" src="/latest_image" alt="ComfyUI Latest Output" />
     <div id="badge"><span id="dot"></span><span id="info">Conectado</span></div>
   </div>
@@ -377,10 +390,45 @@ async def get_ha_view(request):
     document.getElementById('btn-faceswap').href = `${baseUrl}/studio#tab-faceswap`;
     document.getElementById('btn-pixelart').href = `${baseUrl}/studio#tab-pixelart`;
 
+    function haConfirmDialog(title, message, isDanger = true) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('ha-confirm-modal');
+        if (!modal) {
+          resolve(window.confirm(message));
+          return;
+        }
+        document.getElementById('ha-confirm-title').textContent = title;
+        document.getElementById('ha-confirm-msg').textContent = message;
+        const okBtn = document.getElementById('ha-confirm-ok');
+        const cancelBtn = document.getElementById('ha-confirm-cancel');
+        okBtn.style.background = isDanger ? '#ef4444' : '#2563eb';
+        modal.style.display = 'flex';
+        function finish(val) {
+          modal.style.display = 'none';
+          document.removeEventListener('keydown', onKey);
+          resolve(val);
+        }
+        function onKey(e) {
+          if (e.key === 'Escape') finish(false);
+          else if (e.key === 'Enter') finish(true);
+        }
+        okBtn.onclick = () => finish(true);
+        cancelBtn.onclick = () => finish(false);
+        modal.onclick = (e) => { if (e.target === modal) finish(false); };
+        document.addEventListener('keydown', onKey);
+        okBtn.focus();
+      });
+    }
+
     async function triggerServerAction(action) {
       const isRestart = action === 'restart';
       const label = isRestart ? 'reiniciar' : 'desligar';
-      if (!confirm(`Deseja realmente ${label} o servidor ComfyUI?`)) return;
+      const ok = await haConfirmDialog(
+        `${isRestart ? 'Reiniciar' : 'Desligar'} Servidor`,
+        `Deseja realmente ${label} o servidor ComfyUI?`,
+        !isRestart
+      );
+      if (!ok) return;
       dotEl.style.background = '#eab308';
       dotEl.style.boxShadow = '0 0 6px #eab308';
       infoEl.textContent = isRestart ? 'Reiniciando...' : 'Desligando...';
@@ -3801,6 +3849,7 @@ async def api_combo_tester_delete_test_image(request):
         if not filename:
             return web.json_response({"error": "Filename não fornecido"}, status=400)
 
+        filename = os.path.basename(str(filename).strip())
         # Remove exclusivamente do diretório de testes, sem afetar outras galerias ou pastas guardadas
         target = TESTER_OUTPUT_DIR / filename
         if target.exists() and target.is_file():

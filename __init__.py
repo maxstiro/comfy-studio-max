@@ -3212,6 +3212,16 @@ async def api_combo_tester_new_test(request):
             if any(hc in sl_low for hc in heavy_contrast_keywords) or any(sk in sl_low for sk in style_keywords):
                 style_count += 1
 
+        # Limite proporcional de peso máximo por LoRA conforme a quantidade de LoRAs
+        if qtd <= 1:
+            max_lora_cap = 1.00
+        elif qtd == 2:
+            max_lora_cap = 0.70
+        elif qtd == 3:
+            max_lora_cap = 0.50
+        else:
+            max_lora_cap = round(max(0.25, 1.45 / qtd), 2)
+
         loras_config = []
         for sl in sampled_loras:
             sl_low = sl.lower()
@@ -3219,20 +3229,21 @@ async def api_combo_tester_new_test(request):
             is_style = is_heavy or any(sk in sl_low for sk in style_keywords)
 
             if is_heavy:
-                # LoRAs de alto contraste / traço preto (d4rkl1nes, flatline, ptd): faixa ideal de 0.50 a 0.65
-                w = random.choice([0.5, 0.55, 0.6, 0.65])
+                # LoRAs de alto contraste / traço preto (d4rkl1nes, flatline, ptd): faixa ideal de 0.45 a 0.60
+                w = random.choice([0.45, 0.5, 0.55, 0.6])
             elif is_style:
                 # Quando múltiplos estilos colidem, atenua individualmente para que se misturem sem queimar o latent space
                 if style_count >= 3:
-                    w = random.choice([0.45, 0.5, 0.55])
+                    w = random.choice([0.4, 0.45, 0.5])
                 elif style_count == 2:
-                    w = random.choice([0.55, 0.6, 0.65])
+                    w = random.choice([0.5, 0.55, 0.6])
                 else:
                     w = random.choice([0.65, 0.7, 0.75, 0.8])
             else:
                 # LoRAs de pose, proporção anatômica, sliders e microdetalhes operam em força total
                 w = random.choice([0.65, 0.7, 0.75, 0.8, 0.85])
 
+            w = min(w, max_lora_cap)
             loras_config.append({
                 "lora": sl,
                 "strength_model": round(w, 2),
@@ -3352,13 +3363,33 @@ async def api_combo_tester_generate_set(request):
 
         # 3. Configurar LoRAs (Node 47 - Power Lora Loader) e mapear triggers oficiais
         test_loras = current_test.get("loras", [])
+        active_loras_count = len([item for item in test_loras if item.get("lora") and float(item.get("strength_model", 0.8)) > 0.05])
+
+        # Limite de peso proporcional à quantidade de LoRAs ativos (1 LoRA: até 1.00 | 2 LoRAs: até 0.70 | 3 LoRAs: até 0.50 | 4+: até 0.40)
+        if active_loras_count <= 1:
+            max_lora_strength = 1.00
+        elif active_loras_count == 2:
+            max_lora_strength = 0.70
+        elif active_loras_count == 3:
+            max_lora_strength = 0.50
+        else:
+            max_lora_strength = round(max(0.25, 1.45 / active_loras_count), 2)
+
         lora_triggers = []
+        eff_test_loras = []
         for item in test_loras:
             l_name = item.get("lora")
             if l_name:
                 trig = find_lora_trigger(l_name)
                 if trig and trig not in lora_triggers:
                     lora_triggers.append(trig)
+                orig_s = float(item.get("strength_model", 0.8))
+                eff_s = round(min(orig_s, max_lora_strength), 2)
+                eff_test_loras.append({
+                    **item,
+                    "strength_model": eff_s,
+                    "strength_clip": eff_s
+                })
 
         if "47" in base_prompt and "inputs" in base_prompt["47"]:
             n47_inputs = base_prompt["47"]["inputs"]
@@ -3366,7 +3397,7 @@ async def api_combo_tester_generate_set(request):
                 if k.startswith("lora_") and isinstance(n47_inputs[k], dict):
                     n47_inputs[k]["on"] = False
 
-            for idx, item in enumerate(test_loras, 1):
+            for idx, item in enumerate(eff_test_loras, 1):
                 slot_key = f"lora_{idx}"
                 n47_inputs[slot_key] = {
                     "on": True,
@@ -3428,25 +3459,27 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
-                # 5. Escala Dinâmica de CFG (Node 44 - KSampler)
-                # Adapta o CFG para a carga de LoRAs ativos: evita estouro de saturação, artefatos de difusão e contraste queimado
+                # 5. Escala Dinâmica de CFG de 5.0 até 3.0 (Node 44 - KSampler)
+                # Quanto mais LoRAs ativos, menor o CFG (curva proporcional de 5.0 até 3.0)
                 if "44" in prompt_copy and "inputs" in prompt_copy["44"]:
-                    total_l_strength = sum(float(item.get("strength_model", 0.8)) for item in test_loras)
                     heavy_contrast_stems = [
                         "d4rkl1nes", "flatline", "ptd", "glowing_in_dark", "ani2rel", 
                         "3d_stylized", "oil", "shadow-circuit", "incoth", "jab_illustrious", 
                         "retro_scifi", "retrocom1", "sarafaber"
                     ]
-                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in test_loras)
-                    active_loras_count = len([item for item in test_loras if float(item.get("strength_model", 0.8)) > 0.1])
+                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in eff_test_loras)
 
-                    # No Illustrious SDXL, múltiplos LoRAs com CFG > 4.2 fritam o espaço latente
-                    if has_heavy_contrast or total_l_strength >= 1.6 or active_loras_count >= 2:
-                        dynamic_cfg = 3.6
-                    elif total_l_strength >= 0.8 or active_loras_count == 1:
-                        dynamic_cfg = 4.0
-                    else:
-                        dynamic_cfg = 4.3
+                    if active_loras_count == 0:
+                        dynamic_cfg = 5.0
+                    elif active_loras_count == 1:
+                        dynamic_cfg = 4.3 if has_heavy_contrast else 4.5
+                    elif active_loras_count == 2:
+                        dynamic_cfg = 3.7 if has_heavy_contrast else 3.9
+                    elif active_loras_count == 3:
+                        dynamic_cfg = 3.2 if has_heavy_contrast else 3.4
+                    else: # 4 ou mais LoRAs
+                        dynamic_cfg = 3.0
+
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
                 payload = {

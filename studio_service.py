@@ -204,23 +204,56 @@ async def handle_manager_status(request):
     })
 
 
+def launch_comfyui_silent():
+    """Inicia o ComfyUI 100% silencioso em segundo plano sem janela de terminal."""
+    env = os.environ.copy()
+    env["PIP_CACHE_DIR"] = "D:\\IA\\cache\\pip"
+    env["HF_HOME"] = "D:\\IA\\cache\\hf"
+    env["TORCH_HOME"] = "D:\\IA\\cache\\torch"
+    env["TEMP"] = "D:\\IA\\cache\\tmp"
+    env["TMP"] = "D:\\IA\\cache\\tmp"
+    env["PATH"] = f"D:\\IA\\Git\\cmd;{env.get('PATH', '')}"
+    env["PYTORCH_HIP_ALLOC_CONF"] = "garbage_collection_threshold:0.8,max_split_size_mb:512"
+    env["HIP_VISIBLE_DEVICES"] = "0"
+
+    python_exe = COMFY_ROOT / "venv" / "Scripts" / "pythonw.exe"
+    if not python_exe.exists():
+        python_exe = COMFY_ROOT / "venv" / "Scripts" / "python.exe"
+
+    cmd = [
+        str(python_exe),
+        str(COMFY_ROOT / "main.py"),
+        "--use-pytorch-cross-attention",
+        "--enable-manager",
+        "--disable-pinned-memory",
+        "--disable-async-offload",
+        "--disable-dynamic-vram",
+        "--reserve-vram", "2.0",
+        "--preview-method", "auto",
+        "--listen", "0.0.0.0",
+        "--enable-cors-header", "*"
+    ]
+    subprocess.Popen(
+        cmd,
+        cwd=str(COMFY_ROOT),
+        env=env,
+        creationflags=subprocess.CREATE_NO_WINDOW
+    )
+
+
 @routes.post("/api/manager/start")
 async def handle_manager_start(request):
-    """Inicia o ComfyUI em segundo plano."""
+    """Inicia o ComfyUI em segundo plano sem janela de terminal."""
     if await check_comfyui_online():
         return web.json_response({"success": True, "message": "ComfyUI já está online"})
 
-    iniciar_bat = COMFY_ROOT / "iniciar.bat"
-    if iniciar_bat.exists():
-        subprocess.Popen(["cmd.exe", "/c", str(iniciar_bat)], cwd=str(COMFY_ROOT), creationflags=subprocess.CREATE_NO_WINDOW)
-        return web.json_response({"success": True, "message": "Iniciando ComfyUI..."})
-    else:
-        return web.json_response({"success": False, "error": "iniciar.bat não encontrado em COMFY_ROOT"}, status=404)
+    launch_comfyui_silent()
+    return web.json_response({"success": True, "message": "Iniciando ComfyUI silenciosamente..."})
 
 
 @routes.post("/api/manager/stop")
 async def handle_manager_stop(request):
-    """Desliga o ComfyUI para liberar 100% da GPU/VRAM."""
+    """Desliga o ComfyUI para liberar 100% da GPU/VRAM sem janela."""
     parar_bat = COMFY_ROOT / "parar.bat"
     if parar_bat.exists():
         subprocess.Popen(["cmd.exe", "/c", str(parar_bat)], cwd=str(COMFY_ROOT), creationflags=subprocess.CREATE_NO_WINDOW)
@@ -231,15 +264,13 @@ async def handle_manager_stop(request):
 
 @routes.post("/api/manager/restart")
 async def handle_manager_restart(request):
-    """Reinicia o processo do ComfyUI."""
+    """Reinicia o processo do ComfyUI silenciosamente sem janela."""
     parar_bat = COMFY_ROOT / "parar.bat"
-    iniciar_bat = COMFY_ROOT / "iniciar.bat"
-    if parar_bat.exists() and iniciar_bat.exists():
+    if parar_bat.exists():
         subprocess.run(["cmd.exe", "/c", str(parar_bat)], cwd=str(COMFY_ROOT), creationflags=subprocess.CREATE_NO_WINDOW)
-        await asyncio.sleep(2)
-        subprocess.Popen(["cmd.exe", "/c", str(iniciar_bat)], cwd=str(COMFY_ROOT), creationflags=subprocess.CREATE_NO_WINDOW)
-        return web.json_response({"success": True, "message": "Reiniciando ComfyUI..."})
-    return web.json_response({"success": False, "error": "Scripts de controle ausentes"}, status=404)
+    await asyncio.sleep(2)
+    launch_comfyui_silent()
+    return web.json_response({"success": True, "message": "Reiniciando ComfyUI silenciosamente..."})
 
 
 # ==============================================================================

@@ -804,7 +804,10 @@ LORA_TRIGGER_REGISTRY = {
     'strap-on': 'lestraabed, strap-on, yuri, 2girls',
     'il_between_pencils_and_semi-realism_style': 'stbedap, semi-realistic, pencil sketch, traditional media',
     'between_pencils': 'stbedap, semi-realistic, pencil sketch, traditional media',
-    'stbedap': 'stbedap, semi-realistic, pencil sketch, traditional media'
+    'stbedap': 'stbedap, semi-realistic, pencil sketch, traditional media',
+    '8-masterfist_il': 'Masterfist_IL, inpussy, inass, realistic',
+    'masterfist_il': 'Masterfist_IL, inpussy, inass, realistic',
+    'masterfist': 'Masterfist_IL, inpussy, inass, realistic'
 }
 
 def insert_contextual(tags: list, new_tag: str, anchor_keywords: list, fallback_to_end=True, place='after') -> list:
@@ -1885,6 +1888,19 @@ class PromptReviewer:
                     tags = insert_contextual(tags, 'lestraabed, strap-on', [lora_tag, 'strap-on', 'strapon'], place='after')
                 logs.append('[NSFW LoRA 7 Injected] 7-IL_Lesbian_anal_strap-on acoplado contextualmente.')
 
+        # LoRA 8: Masterfist (fisting vaginal / anal)
+        fisting_match = any(ft in full_text_lower for ft in [
+            'fisting', 'vaginal_fisting', 'anal_fisting', 'masterfist', 'inpussy', 'inass'
+        ])
+        if fisting_match:
+            if not any('8-masterfist' in t.lower() or ('masterfist' in t.lower() and '<lora:' in t.lower()) for t in tags):
+                lora_tag = '<lora:illustrious\\nsfw\\8-Masterfist_IL.safetensors:0.8>'
+                tags = insert_contextual(tags, lora_tag, ['fisting', 'vaginal_fisting', 'anal_fisting', '1girl', 'female_focus'], place='after')
+                fist_trig = 'Masterfist_IL, inass, realistic' if 'anal' in full_text_lower else 'Masterfist_IL, inpussy, realistic'
+                if not any('masterfist' in t.lower() for t in tags):
+                    tags = insert_contextual(tags, fist_trig, [lora_tag, 'fisting'], place='after')
+                logs.append('[NSFW LoRA 8 Injected] Masterfist_IL acoplado contextualmente para fisting.')
+
         # 19. Equilíbrio Dinâmico de Pesos e Anti-Burn / Anti-Supersaturação
         # Multiplicadores excessivos (> 1.20) no SDXL / Illustrious degradam e estressam o espaço latente,
         # causando aberrações cromáticas (pele verde-neon, tentáculos em rosa-choque, sombras esmagadas).
@@ -2511,7 +2527,8 @@ def get_sampleable_loras(refresh=False):
         "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
         "draenei", "fsev", "fairy", "orc", "flesh_unit", "gazelle", "pand4w4", "serpent", "navi", "saber",
         "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator",
-        "chokersnap", "heldbygiant", "5-oral", "7-il_lesbian", "strap-on", "strapon", "lestraabed"
+        "chokersnap", "heldbygiant", "5-oral", "7-il_lesbian", "strap-on", "strapon", "lestraabed",
+        "8-masterfist", "masterfist"
     ])]
     return sampleable if sampleable else all_l
 
@@ -2880,6 +2897,8 @@ def _friendly_lora_name(lora_str: str) -> str:
         return "Between Pencils & Semi-Realism"
     if '7-il_lesbian' in raw.lower():
         return "Lesbian Anal Strap-On"
+    if '8-masterfist' in raw.lower() or 'masterfist' in raw.lower():
+        return "Masterfist (Fisting)"
 
     m = re.search(r'^(.*?)\(([^)]+)\)$', raw)
     if m:
@@ -2920,7 +2939,8 @@ def _match_approved_combo_name(ckpt_name: str, loras_list: list) -> str:
             "saber-toothed",
             "1-freaky_dicksv3", "freaky_dicks", "2-masturbation with dildo (illustrious) v1",
             "3-spreadanusill", "4-buttplugs", "5-oral", "6-heldbygiant",
-            "7-il_lesbian_anal_strap-on", "il_lesbian_anal_strap-on"
+            "7-il_lesbian_anal_strap-on", "il_lesbian_anal_strap-on",
+            "8-masterfist_il", "masterfist_il", "masterfist"
         }
 
         img_lora_stems = {pathlib.Path(l["lora"].lower()).stem.split('(')[0].strip() for l in loras_list}

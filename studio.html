@@ -7,47 +7,65 @@
   <link rel="icon" type="image/png" href="/brand_avatar.png">
   <style>
     :root {
-      --bg: #030407;
-      --bg-panel: rgba(8, 10, 16, 0.65);
-      --card-bg: rgba(10, 13, 20, 0.58);
-      --card-border: rgba(255, 255, 255, 0.055);
-      --card-border-hover: rgba(99, 102, 241, 0.35);
-      --accent: #4f46e5;
-      --accent-hover: #4338ca;
-      --accent-gradient: linear-gradient(135deg, #4f46e5, #6366f1);
-      --accent-glow: rgba(79, 70, 229, 0.18);
-      --cyan: #0284c7;
-      --pink: #be185d;
-      --success: #059669;
-      --success-hover: #047857;
-      --danger: #dc2626;
-      --danger-hover: #b91c1c;
-      --gold: #d97706;
-      --text: #f1f5f9;
-      --text-muted: #8492a6;
-      --radius: 12px;
+      --bg: #04060c;
+      --bg-panel: rgba(11, 15, 28, 0.45);
+      --card-bg: rgba(13, 18, 33, 0.45);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-border-hover: rgba(129, 140, 248, 0.45);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-gradient: linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #ec4899 100%);
+      --accent-glow: rgba(99, 102, 241, 0.28);
+      --cyan: #06b6d4;
+      --pink: #f43f5e;
+      --success: #10b981;
+      --success-hover: #059669;
+      --danger: #ef4444;
+      --danger-hover: #dc2626;
+      --gold: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --radius: 14px;
       --radius-sm: 8px;
-      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 
     body {
-      background: radial-gradient(circle at 10% 5%, rgba(79, 70, 229, 0.05), transparent 45%),
-                  radial-gradient(circle at 90% 95%, rgba(14, 165, 233, 0.03), transparent 45%),
-                  var(--bg);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(99, 102, 241, 0.12), transparent 42%),
+        radial-gradient(circle at 88% 12%, rgba(14, 165, 233, 0.09), transparent 42%),
+        radial-gradient(circle at 50% 88%, rgba(236, 72, 153, 0.07), transparent 48%),
+        radial-gradient(circle at 82% 82%, rgba(99, 102, 241, 0.08), transparent 40%),
+        radial-gradient(rgba(255, 255, 255, 0.055) 1px, transparent 1px) 0 0 / 30px 30px,
+        #04060c;
       color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
+      position: relative;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      top: -180px;
+      left: 15%;
+      width: 650px;
+      height: 650px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.14) 0%, transparent 70%);
+      pointer-events: none;
+      filter: blur(90px);
+      z-index: 0;
     }
 
     /* HEADER */
     header {
-      background: rgba(5, 7, 12, 0.70);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(6, 9, 18, 0.60);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
       border-bottom: 1px solid var(--card-border);
       position: sticky;
       top: 0;
@@ -57,6 +75,7 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35), inset 0 -1px 0 rgba(255, 255, 255, 0.05);
     }
 
     .brand {
@@ -162,14 +181,15 @@
 
     /* NAVIGATION TABS */
     .tab-bar-container {
-      background: rgba(4, 6, 10, 0.75);
+      background: rgba(6, 9, 18, 0.55);
       border-bottom: 1px solid var(--card-border);
       padding: 0 24px;
       position: sticky;
       top: 69px;
       z-index: 90;
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      backdrop-filter: blur(28px) saturate(200%);
+      -webkit-backdrop-filter: blur(28px) saturate(200%);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
     }
 
     .tab-bar {
@@ -194,16 +214,19 @@
       gap: 8px;
       transition: var(--transition);
       white-space: nowrap;
+      position: relative;
     }
 
     .tab-btn:hover {
       color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .tab-btn.active {
       color: #fff;
       border-bottom-color: var(--accent);
-      background: linear-gradient(to top, rgba(79, 70, 229, 0.15), transparent);
+      background: linear-gradient(to top, rgba(99, 102, 241, 0.2), transparent);
+      text-shadow: 0 0 16px rgba(99, 102, 241, 0.4);
     }
 
     /* MAIN CONTAINER - WIDESCREEN EXPANSIVO */
@@ -247,17 +270,163 @@
 
     .card {
       background: var(--card-bg);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
       border: 1px solid var(--card-border);
       border-radius: var(--radius);
       padding: 20px;
       margin-bottom: 20px;
       transition: var(--transition);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      position: relative;
     }
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.10);
+      border-color: var(--card-border-hover);
+      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.55), 0 0 24px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    /* GRID DE PRESETS SALVOS EM CARDS QUADRADOS */
+    .presets-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+      gap: 22px;
+      margin-top: 18px;
+    }
+
+    .preset-card {
+      background: rgba(13, 18, 34, 0.45);
+      backdrop-filter: blur(24px) saturate(200%);
+      -webkit-backdrop-filter: blur(24px) saturate(200%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      position: relative;
+    }
+    .preset-card:hover {
+      border-color: rgba(129, 140, 248, 0.5);
+      transform: translateY(-4px);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.6), 0 0 28px rgba(99, 102, 241, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+
+    .preset-thumb-box {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: linear-gradient(135deg, rgba(20, 25, 48, 0.7), rgba(9, 12, 22, 0.95));
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .preset-thumb-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.35s ease;
+      cursor: pointer;
+    }
+    .preset-card:hover .preset-thumb-img {
+      transform: scale(1.04);
+    }
+
+    .preset-thumb-fallback {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #94a3b8;
+      font-size: 0.82rem;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .preset-thumb-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, transparent 40%, rgba(0,0,0,0.7) 100%);
+      pointer-events: none;
+    }
+
+    .preset-thumb-actions {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      z-index: 5;
+    }
+    .preset-card:hover .preset-thumb-actions {
+      opacity: 1;
+    }
+
+    .preset-card-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .preset-card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .preset-card-desc-box {
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .preset-card-desc-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #cbd5e1;
+      font-size: 0.82rem;
+      resize: vertical;
+      min-height: 44px;
+      outline: none;
+      line-height: 1.4;
+      font-family: inherit;
+    }
+    .preset-card-desc-input::placeholder {
+      color: #64748b;
+      font-style: italic;
+    }
+
+    .preset-card-desc-btn {
+      align-self: flex-end;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      background: rgba(99, 102, 241, 0.2);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #c7d2fe;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .preset-card-desc-btn:hover {
+      background: rgba(99, 102, 241, 0.4);
+      color: #fff;
     }
 
     .card-title {
@@ -1081,7 +1250,11 @@
   <div class="tab-bar-container">
     <div class="tab-bar">
       <button class="tab-btn active" onclick="switchTab('tab-tester')">
-        <span>🧪 Testador & Presets</span>
+        <span>🧪 Testador de Combos</span>
+      </button>
+      <button id="btn-tab-presets" class="tab-btn" onclick="switchTab('tab-presets')">
+        <span>✨ Presets Salvos</span>
+        <span id="presets-count-badge" style="background: rgba(99, 102, 241, 0.22); border: 1px solid rgba(99, 102, 241, 0.45); color: #c7d2fe; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
       </button>
       <button id="btn-tab-saved" class="tab-btn" onclick="switchTab('tab-saved')">
         <span>⭐ Guardadas</span>
@@ -1264,6 +1437,33 @@
               </table>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ===================================================================== -->
+    <!-- TAB: PRESETS SALVOS (CARDS QUADRADOS COM THUMB & DESCRIÇÃO) -->
+    <!-- ===================================================================== -->
+    <div id="tab-presets" class="tab-content">
+      <div class="card" style="width: 100%;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.15rem; font-weight: 700; color: #f8fafc;">✨ Galeria de Presets Salvos</span>
+            <span id="lbl-presets-total" style="background: rgba(99,102,241,0.18); border: 1px solid rgba(99,102,241,0.35); color: #c7d2fe; font-size: 0.8rem; padding: 3px 12px; border-radius: 999px; font-weight: 600;">0 presets</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="input-search-presets" placeholder="🔍 Buscar por nome, LoRA ou modelo..." oninput="filtrarPresetsSalvos(this.value)" style="width: 290px; padding: 7px 14px; font-size: 0.84rem;">
+            <button class="btn btn-secondary btn-sm" onclick="carregarStatusTester()">🔄 Atualizar</button>
+            <button class="btn btn-primary btn-sm" onclick="switchTab('tab-tester')">🧪 Ir ao Testador</button>
+          </div>
+        </div>
+        <p style="font-size: 0.84rem; color: var(--text-muted); margin-bottom: 16px;">
+          Coleção de combinações aprovadas. Cada card exibe a imagem de capa do preset, detalhes dos LoRAs com pesos, espaço para descrição personalizada e atalho direto para carregar e gerar no testador.
+        </p>
+
+        <div id="presets-cards-container" class="presets-grid">
+          <p style="color: var(--text-muted); font-size: 0.88rem; padding: 20px;">Carregando presets aprovados...</p>
         </div>
       </div>
     </div>
@@ -2285,6 +2485,22 @@
     </div>
   </div>
 
+  <!-- MODAL DE ESCOLHA DE CAPA PARA PRESET -->
+  <div id="modal-choose-preset-thumb" class="modal-overlay" onclick="fecharModalEscolherCapa()">
+    <div class="modal-content" style="max-width: 780px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="fecharModalEscolherCapa()">×</button>
+      <h3 style="font-size: 1.15rem; margin-bottom: 8px; color: #fff; display: flex; align-items: center; gap: 8px;">
+        <span>🖼️ Escolher Imagem de Capa para o Preset</span>
+      </h3>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px;">
+        Clique em qualquer imagem gerada ou guardada para defini-la como miniatura oficial deste preset.
+      </p>
+      <div id="choose-thumb-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; overflow-y: auto; max-height: 60vh; padding-right: 4px;">
+        <!-- Itens injetados via JS -->
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL DA BIBLIOTECA DE LORAS & MODELOS -->
   <div id="modal-loras-library" class="modal-overlay" onclick="fecharModalBibliotecaLoras()">
     <div class="modal-content" style="max-width: 700px; max-height: 85vh; display: flex; flex-direction: column;" onclick="event.stopPropagation()">
@@ -2364,6 +2580,7 @@
       } catch (e) {}
 
       if (tabId === 'tab-tester') carregarStatusTester();
+      if (tabId === 'tab-presets') { carregarStatusTester(); renderPresetsCards(state.approvedCombos); }
       if (tabId === 'tab-saved') carregarStatusTester();
       if (tabId === 'tab-refine') carregarGaleriaRefinada();
       if (tabId === 'tab-cartoon') carregarGaleriaCartoon();
@@ -3201,29 +3418,314 @@
       }
     }
 
+    let currentPresetsFilter = '';
+
     function renderApprovedCombos(combos) {
       state.approvedCombos = combos || [];
+      const total = state.approvedCombos.length;
+
+      // 1. Atualizar contadores
+      const countBadge = document.getElementById('presets-count-badge');
+      if (countBadge) countBadge.textContent = total;
+      const lblTotal = document.getElementById('lbl-presets-total');
+      if (lblTotal) lblTotal.textContent = `(${total} presets)`;
+
+      // 2. Renderizar cards na nova aba de Presets
+      renderPresetsCards(state.approvedCombos);
+
+      // 3. Atualizar a tabela de presets do testador
       const tbody = document.getElementById('tbl-approved-combos');
+      if (tbody) {
+        if (!combos || combos.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="4" style="color: var(--text-muted); text-align: center;">Nenhum combo aprovado ainda.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = combos.map(c => `
+          <tr>
+            <td><strong style="color: #f1f5f9;">${c.name || c.id}</strong></td>
+            <td style="font-size: 0.78rem; color: #cbd5e1;">${(c.checkpoint||'').split('\\\\').pop().split('/').pop()}</td>
+            <td style="font-size: 0.75rem; color: var(--text-muted);">
+              ${(c.loras||[]).map(l => `${(l.lora||'').split('\\\\').pop().split('/').pop().replace('.safetensors','')} (${l.strength_model})`).join(', ')}
+            </td>
+            <td>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-primary btn-sm" title="Usar este preset no Testador" onclick="carregarPresetNoTestador('${c.id}')">🚀 Usar</button>
+                <button class="btn btn-secondary btn-sm" title="Renomear este preset" onclick="openRenameModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')">✏️</button>
+                <button class="btn btn-secondary btn-sm" title="Editar pesos dos LoRAs e checkpoint" onclick="openEditModal('${c.id}')">⚙️</button>
+                <button class="btn btn-danger btn-sm" title="Excluir preset" onclick="openDeleteModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function filtrarPresetsSalvos(termo) {
+      currentPresetsFilter = (termo || '').toLowerCase().trim();
+      renderPresetsCards(state.approvedCombos);
+    }
+
+    function renderPresetsCards(combos) {
+      const container = document.getElementById('presets-cards-container');
+      if (!container) return;
+
       if (!combos || combos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color: var(--text-muted); text-align: center;">Nenhum combo aprovado ainda.</td></tr>';
+        container.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 48px 20px; background: rgba(0,0,0,0.2); border-radius: var(--radius); border: 1px dashed rgba(255,255,255,0.1);">
+            <div style="font-size: 2.5rem; margin-bottom: 12px;">🧪✨</div>
+            <h4 style="font-size: 1.1rem; color: #f8fafc; margin-bottom: 6px;">Nenhum Preset Aprovado Ainda</h4>
+            <p style="color: var(--text-muted); font-size: 0.85rem; max-width: 460px; margin: 0 auto 16px auto;">
+              Gere lotes de combinações no Testador de Combos e clique em "⭐ Aprovar" para salvar suas combinações favoritas com capa e descrição aqui.
+            </p>
+            <button class="btn btn-primary btn-sm" onclick="switchTab('tab-tester')">Ir para o Testador de Combos</button>
+          </div>
+        `;
         return;
       }
-      tbody.innerHTML = combos.map(c => `
-        <tr>
-          <td><strong style="color: #f1f5f9;">${c.name || c.id}</strong></td>
-          <td style="font-size: 0.78rem; color: #cbd5e1;">${(c.checkpoint||'').split('\\\\').pop()}</td>
-          <td style="font-size: 0.75rem; color: var(--text-muted);">
-            ${(c.loras||[]).map(l => `${(l.lora||'').split('\\\\').pop().replace('.safetensors','')} (${l.strength_model})`).join(', ')}
-          </td>
-          <td>
-            <div style="display: flex; gap: 6px;">
-              <button class="btn btn-secondary btn-sm" title="Renomear este preset" onclick="openRenameModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')">✏️ Renomear</button>
-              <button class="btn btn-secondary btn-sm" title="Editar pesos dos LoRAs e checkpoint" onclick="openEditModal('${c.id}')">⚙️ Editar</button>
-              <button class="btn btn-danger btn-sm" title="Excluir preset" onclick="openDeleteModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')">🗑️</button>
+
+      let filtered = combos;
+      if (currentPresetsFilter) {
+        filtered = combos.filter(c => {
+          const name = (c.name || '').toLowerCase();
+          const ckpt = (c.checkpoint || '').toLowerCase();
+          const desc = (c.description || '').toLowerCase();
+          const lorasStr = (c.loras || []).map(l => (l.lora || '').toLowerCase()).join(' ');
+          return name.includes(currentPresetsFilter) || ckpt.includes(currentPresetsFilter) || desc.includes(currentPresetsFilter) || lorasStr.includes(currentPresetsFilter);
+        });
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div style="grid-column: 1 / -1; text-align: center; padding: 36px 20px; color: var(--text-muted);">
+            <p style="font-size: 0.9rem;">Nenhum preset encontrado para a busca "<strong>${currentPresetsFilter}</strong>".</p>
+            <button class="btn btn-secondary btn-sm" style="margin-top: 10px;" onclick="document.getElementById('input-search-presets').value=''; filtrarPresetsSalvos('');">Limpar Busca</button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(c => {
+        const ckptClean = (c.checkpoint || '').split('\\').pop().split('/').pop().replace('.safetensors', '');
+        const lorasChips = (c.loras && c.loras.length > 0)
+          ? c.loras.map(l => {
+              const lName = (l.friendly_name || (l.lora || '').split('\\').pop().split('/').pop().replace('.safetensors', ''));
+              return `<span style="display: inline-flex; align-items: center; gap: 4px; background: rgba(99, 102, 241, 0.16); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 6px; padding: 2px 7px; font-size: 0.72rem; color: #c7d2fe;" title="${lName}">
+                <span style="max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">🧩 ${lName}</span>
+                <strong style="color: #38bdf8; background: rgba(0,0,0,0.3); padding: 0 4px; border-radius: 3px;">${l.strength_model}</strong>
+              </span>`;
+            }).join('')
+          : '<span style="color: var(--text-muted); font-size: 0.72rem; font-style: italic;">Sem LoRAs extras</span>';
+
+        const thumbContent = c.thumb_url
+          ? `<img src="${c.thumb_url}" class="preset-thumb-img" alt="${c.name || c.id}" loading="lazy" onclick="abrirModalZoomPreset('${c.id}')" title="Clique para ampliar capa">`
+          : `<div class="preset-thumb-fallback">
+              <div style="font-size: 2.2rem; filter: drop-shadow(0 0 12px rgba(99,102,241,0.5));">🎨</div>
+              <strong style="color: #cbd5e1; font-size: 0.85rem;">Preset Sem Capa</strong>
+              <button class="btn btn-secondary btn-sm" style="font-size: 0.7rem; padding: 2px 8px;" onclick="abrirModalEscolherCapa('${c.id}')">🖼️ Vincular Capa</button>
+            </div>`;
+
+        return `
+          <div class="preset-card" id="card-preset-${c.id}">
+            <div class="preset-thumb-box">
+              ${thumbContent}
+              <div class="preset-thumb-overlay"></div>
+              <div class="preset-thumb-actions">
+                ${c.thumb_url ? `<button class="btn-action-icon" title="Ver imagem de capa ampliada" onclick="abrirModalZoomPreset('${c.id}')" style="background: rgba(0,0,0,0.65); backdrop-filter: blur(4px);">🔍</button>` : ''}
+                <button class="btn-action-icon" title="Trocar imagem de capa" onclick="abrirModalEscolherCapa('${c.id}')" style="background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); color: #38bdf8;">🖼️ Capa</button>
+              </div>
+              <div style="position: absolute; bottom: 8px; left: 10px; z-index: 4;">
+                <span style="background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(6px); border: 1px solid rgba(255, 255, 255, 0.12); color: #e2e8f0; font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;">
+                  🤖 ${ckptClean}
+                </span>
+              </div>
             </div>
-          </td>
-        </tr>
-      `).join('');
+
+            <div class="preset-card-body">
+              <div class="preset-card-title">
+                <span title="${c.name || c.id}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${c.name || c.id}</span>
+                <button class="btn-action-icon" title="Renomear Preset" onclick="openRenameModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')" style="font-size: 0.75rem;">✏️</button>
+              </div>
+
+              <!-- LoRAs & Pesos -->
+              <div style="display: flex; flex-wrap: wrap; gap: 5px; min-height: 28px;">
+                ${lorasChips}
+              </div>
+
+              <!-- Descrição Opcional -->
+              <div class="preset-card-desc-box">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600;">Descrição / Notas</span>
+                  <button type="button" class="preset-card-desc-btn" onclick="salvarDescricaoPreset('${c.id}')">💾 Salvar</button>
+                </div>
+                <textarea id="desc-preset-${c.id}" class="preset-card-desc-input" placeholder="Adicione uma descrição opcional para este preset...">${c.description || ''}</textarea>
+              </div>
+
+              <!-- Botões de Ação -->
+              <div style="display: flex; gap: 8px; margin-top: auto; padding-top: 6px;">
+                <button class="btn btn-primary btn-sm" style="flex: 1;" onclick="carregarPresetNoTestador('${c.id}')" title="Carregar este modelo e LoRAs diretamente no Testador de Combos">
+                  <span>🚀 Usar no Testador</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" title="Editar pesos dos LoRAs" onclick="openEditModal('${c.id}')">
+                  <span>⚙️</span>
+                </button>
+                <button class="btn btn-danger btn-sm" title="Excluir preset permanentemente" onclick="openDeleteModal('${c.id}', '${(c.name||'').replace(/'/g, "\\'")}')">
+                  <span>🗑️</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function salvarDescricaoPreset(id) {
+      const input = document.getElementById(`desc-preset-${id}`);
+      if (!input) return;
+      const desc = input.value.trim();
+      try {
+        const res = await fetch('/api/combo_tester/preset/update_description', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, description: desc })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Descrição do preset salva com sucesso!', 'success');
+          const target = (state.approvedCombos || []).find(c => c.id === id);
+          if (target) target.description = desc;
+        } else {
+          showToast(data.error || 'Erro ao salvar descrição', 'error');
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao salvar descrição', 'error');
+      }
+    }
+
+    async function carregarPresetNoTestador(presetId) {
+      const preset = (state.approvedCombos || []).find(c => c.id === presetId);
+      if (!preset) return;
+
+      try {
+        showToast(`Carregando preset '${preset.name || preset.id}' no Testador...`, 'info');
+        const res = await fetch('/api/combo_tester/update_current', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checkpoint: preset.checkpoint,
+            loras: preset.loras
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          state.currentTest = data.test;
+          renderTesterActiveCombo(state.currentTest);
+          switchTab('tab-tester');
+          showToast(`Preset '${preset.name || preset.id}' carregado no Testador! Pronto para gerar.`, 'success');
+        } else {
+          showToast(data.error || 'Erro ao carregar preset', 'error');
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao carregar preset', 'error');
+      }
+    }
+
+    function abrirModalZoomPreset(id) {
+      const preset = (state.approvedCombos || []).find(c => c.id === id);
+      if (!preset || !preset.thumb_url) return;
+      abrirModalZoomUrl(preset.thumb_url, preset.name || preset.id, {
+        checkpoint: preset.checkpoint,
+        loras: preset.loras,
+        prompt: preset.description || preset.notes || ''
+      });
+    }
+
+    let currentPresetForThumb = null;
+
+    function abrirModalEscolherCapa(presetId) {
+      currentPresetForThumb = presetId;
+      const modal = document.getElementById('modal-choose-preset-thumb');
+      if (!modal) return;
+
+      const grid = document.getElementById('choose-thumb-grid');
+      const allImages = [...(state.savedGallery || []), ...(state.images || [])];
+
+      if (allImages.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-muted); padding: 20px;">Nenhuma imagem disponível nas galerias para vincular como capa.</p>';
+      } else {
+        grid.innerHTML = allImages.map(img => `
+          <div style="aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; border: 2px solid transparent; cursor: pointer; position: relative; background: #000;"
+               class="choose-thumb-item" onclick="selecionarThumbParaPreset('${img.filename}')">
+            <img src="${img.url}" style="width: 100%; height: 100%; object-fit: cover;" loading="lazy">
+            <div style="position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.65); padding: 2px 4px; font-size: 10px; color: #fff; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+              ${img.filename}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      modal.classList.add('open');
+    }
+
+    function fecharModalEscolherCapa() {
+      const modal = document.getElementById('modal-choose-preset-thumb');
+      if (modal) modal.classList.remove('open');
+      currentPresetForThumb = null;
+    }
+
+    async function selecionarThumbParaPreset(filename) {
+      if (!currentPresetForThumb || !filename) return;
+      const pid = currentPresetForThumb;
+      fecharModalEscolherCapa();
+      try {
+        const res = await fetch('/api/combo_tester/preset/set_thumb', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: pid, thumb: filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Capa do preset atualizada!', 'success');
+          carregarStatusTester();
+        } else {
+          showToast(data.error || 'Erro ao definir capa', 'error');
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao definir capa', 'error');
+      }
+    }
+
+    function abrirModalZoomUrl(imgUrl, title, meta = {}) {
+      const modal = document.getElementById('modal-zoom');
+      const img = document.getElementById('modal-zoom-img');
+      const metaContainer = document.getElementById('modal-zoom-meta');
+      const saveBtn = document.getElementById('btn-modal-save');
+      const dlLink = document.getElementById('btn-modal-download');
+
+      if (!modal || !img) return;
+
+      currentZoomItem = { filename: title || 'preset_preview', isSaved: false, meta: meta };
+      img.src = imgUrl;
+      if (dlLink) {
+        dlLink.href = imgUrl;
+        dlLink.setAttribute('download', `${title || 'preset'}.png`);
+      }
+      if (saveBtn) saveBtn.style.display = 'none';
+
+      let metaHtml = `<h4 style="font-size: 1.05rem; color: #fff; margin-bottom: 10px;">✨ ${title || 'Preset'}</h4>`;
+      if (meta.checkpoint) {
+        metaHtml += `<div style="margin-bottom: 8px;"><strong>Modelo:</strong> <span style="color: #cbd5e1;">${(meta.checkpoint||'').split('\\\\').pop().split('/').pop()}</span></div>`;
+      }
+      if (meta.loras && meta.loras.length > 0) {
+        metaHtml += `<div style="margin-bottom: 8px;"><strong>LoRAs (${meta.loras.length}):</strong><div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px;">`;
+        metaHtml += meta.loras.map(l => `<span style="background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.35); border-radius: 4px; padding: 2px 6px; font-size: 0.72rem; color: #c7d2fe;">🧩 ${(l.lora||'').split('\\\\').pop().split('/').pop().replace('.safetensors','')} (${l.strength_model})</span>`).join('');
+        metaHtml += `</div></div>`;
+      }
+      if (meta.prompt) {
+        metaHtml += `<div style="margin-bottom: 8px;"><strong>Notas / Descrição:</strong> <div style="font-size: 0.75rem; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; margin-top: 4px;">${meta.prompt}</div></div>`;
+      }
+      if (metaContainer) metaContainer.innerHTML = metaHtml;
+
+      modal.classList.add('open');
     }
 
     /* Modais de Presets: Renomear, Editar e Excluir */
@@ -5626,12 +6128,18 @@
         showToast('Desligando motor ComfyUI para liberar a GPU...', 'info');
         try {
           const res = await fetch('/api/manager/stop', { method: 'POST' });
-          const data = await res.json();
+          let data = {};
+          try { data = await res.json(); } catch (_) {}
+          isComfyUIOnline = false;
+          renderizarStatusMotor(false);
           showToast(data.message || 'ComfyUI encerrado. VRAM liberada!', 'success');
-          setTimeout(() => atualizarStatusMotor(), 2500);
         } catch (e) {
-          showToast('Erro ao parar ComfyUI', 'error');
+          // Socket fechou no shutdown imediato, confirmando desligamento com sucesso
+          isComfyUIOnline = false;
+          renderizarStatusMotor(false);
+          showToast('ComfyUI encerrado com sucesso. GPU liberada!', 'success');
         }
+        setTimeout(() => atualizarStatusMotor(), 2500);
       } else {
         showToast('Iniciando motor ComfyUI em segundo plano...', 'info');
         try {
@@ -5649,7 +6157,7 @@
             }
           }, 2000);
         } catch (e) {
-          showToast('Erro ao ligar ComfyUI', 'error');
+          showToast('Para iniciar o motor, utilize o atalho de inicialização ou o serviço Studio Max.', 'info');
         }
       }
 

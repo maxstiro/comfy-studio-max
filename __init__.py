@@ -3015,12 +3015,47 @@ async def api_combo_tester_status(request):
         is_generating = (running_count + pending_count) > 0
         queue_remaining = running_count + pending_count
 
+        # Enriquecer approved_combos com thumb_url e description
+        raw_approved = approved_data.get("approved_combos", [])
+        enriched_approved = []
+        for c in raw_approved:
+            c_copy = dict(c)
+            thumb = c_copy.get("thumb", "")
+            thumb_url = ""
+            if thumb:
+                if str(thumb).startswith("http") or str(thumb).startswith("/"):
+                    thumb_url = thumb
+                elif (TESTER_SAVED_DIR / thumb).exists():
+                    thumb_url = f"/tester_saved_images/{thumb}"
+                elif (TESTER_OUTPUT_DIR / thumb).exists():
+                    thumb_url = f"/tester_images/{thumb}"
+
+            # Se não tiver thumb explícita, associa automaticamente uma imagem gerada compatível
+            if not thumb_url:
+                c_name = c_copy.get("name", "")
+                c_ckpt = c_copy.get("checkpoint", "")
+                for s_img in saved_gallery:
+                    if s_img.get("combo_name") == c_name or (s_img.get("checkpoint") == c_ckpt and s_img.get("combo_name")):
+                        thumb_url = s_img.get("url")
+                        c_copy["thumb"] = s_img.get("filename")
+                        break
+                if not thumb_url:
+                    for t_img in tester_images:
+                        if t_img.get("combo_name") == c_name or t_img.get("checkpoint") == c_ckpt:
+                            thumb_url = t_img.get("url")
+                            c_copy["thumb"] = t_img.get("filename")
+                            break
+
+            c_copy["thumb_url"] = thumb_url
+            c_copy["description"] = c_copy.get("description", "")
+            enriched_approved.append(c_copy)
+
         return web.json_response({
             "current_test": current_test,
             "images": tester_images,
             "saved_images": real_saved_filenames,
             "saved_gallery": saved_gallery,
-            "approved_combos": approved_data.get("approved_combos", []),
+            "approved_combos": enriched_approved,
             "rejected_combos": approved_data.get("rejected_combos", []),
             "checkpoints": available_ckpts,
             "available_loras": avail_loras,
@@ -3044,6 +3079,17 @@ async def api_combo_tester_approve(request):
         approved_data = _load_approved_combos_data()
 
         custom_name = data.get("name", "").strip()
+        custom_desc = data.get("description", "").strip()
+        custom_thumb = data.get("thumb", "").strip()
+
+        # Se não enviou thumb específica, tenta capturar a imagem mais recente do teste atual
+        if not custom_thumb and TESTER_OUTPUT_DIR.exists():
+            valid_exts = {".png", ".webp", ".jpg", ".jpeg"}
+            imgs = sorted([f for f in TESTER_OUTPUT_DIR.glob("*") if f.is_file() and f.suffix.lower() in valid_exts],
+                          key=lambda f: f.stat().st_mtime, reverse=True)
+            if imgs:
+                custom_thumb = imgs[0].name
+
         if not custom_name:
             ckpt_raw = current_test.get("checkpoint", "")
             ckpt_short = pathlib.Path(ckpt_raw).stem if ckpt_raw else "Modelo"
@@ -3059,7 +3105,9 @@ async def api_combo_tester_approve(request):
             "checkpoint": current_test.get("checkpoint"),
             "loras": current_test.get("loras", []),
             "approved_at": datetime.datetime.now().isoformat(),
-            "notes": data.get("notes", "Aprovado via Testador Web")
+            "notes": data.get("notes", "Aprovado via Testador Web"),
+            "description": custom_desc,
+            "thumb": custom_thumb
         }
 
         current_test["status"] = "approved"
@@ -3174,6 +3222,10 @@ async def api_combo_tester_preset_edit(request):
             
         if "name" in data and data["name"].strip():
             target["name"] = data["name"].strip()
+        if "description" in data:
+            target["description"] = str(data["description"]).strip()
+        if "thumb" in data:
+            target["thumb"] = str(data["thumb"]).strip()
         if "checkpoint" in data and data["checkpoint"]:
             target["checkpoint"] = data["checkpoint"]
         if "loras" in data and isinstance(data["loras"], list):
@@ -3183,6 +3235,86 @@ async def api_combo_tester_preset_edit(request):
         return web.json_response({"success": True, "message": "Preset atualizado com sucesso!"})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/combo_tester/preset/update_description")
+async def api_combo_tester_preset_update_description(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        pid = data.get("id")
+        desc = str(data.get("description", "")).strip()
+        if not pid:
+            return web.json_response({"error": "ID do preset é obrigatório"}, status=400)
+            
+        approved_data = _load_approved_combos_data()
+        updated = False
+        for c in approved_data.get("approved_combos", []):
+            if c.get("id") == pid:
+                c["description"] = desc
+                updated = True
+                break
+                
+        if not updated:
+            return web.json_response({"error": "Preset não encontrado"}, status=404)
+            
+        _save_approved_combos_data(approved_data)
+        return web.json_response({"success": True, "message": "Descrição salva com sucesso!", "description": desc})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/combo_tester/preset/set_thumb")
+async def api_combo_tester_preset_set_thumb(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        pid = data.get("id")
+        thumb = str(data.get("thumb", "")).strip()
+        if not pid or not thumb:
+            return web.json_response({"error": "ID do preset e thumb são obrigatórios"}, status=400)
+            
+        approved_data = _load_approved_combos_data()
+        updated = False
+        for c in approved_data.get("approved_combos", []):
+            if c.get("id") == pid:
+                c["thumb"] = thumb
+                updated = True
+                break
+                
+        if not updated:
+            return web.json_response({"error": "Preset não encontrado"}, status=404)
+            
+        _save_approved_combos_data(approved_data)
+        return web.json_response({"success": True, "message": "Capa do preset atualizada com sucesso!", "thumb": thumb})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+# ==============================================================================
+# --- CONTROLE DO MOTOR COMFYUI NATIVO (START / STOP / STATUS) ---
+# ==============================================================================
+@server.PromptServer.instance.routes.post("/api/manager/stop")
+async def api_manager_stop(request):
+    """Desliga o motor ComfyUI para liberar 100% da GPU/VRAM sem janela."""
+    try:
+        def _do_shutdown():
+            import time, subprocess
+            time.sleep(0.5)
+            parar_bat = COMFY_ROOT / "parar.bat"
+            if parar_bat.exists():
+                subprocess.Popen(["cmd.exe", "/c", str(parar_bat)], cwd=str(COMFY_ROOT), creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                os._exit(0)
+
+        import threading
+        threading.Thread(target=_do_shutdown, daemon=True).start()
+        return web.json_response({"success": True, "message": "Desligando motor ComfyUI... GPU liberada!"})
+    except Exception as e:
+        return web.json_response({"success": False, "error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/manager/start")
+async def api_manager_start(request):
+    return web.json_response({"success": True, "message": "ComfyUI já está online"})
+
+@server.PromptServer.instance.routes.get("/api/manager/status")
+async def api_manager_status(request):
+    return web.json_response({"success": True, "comfyui_online": True})
 
 @server.PromptServer.instance.routes.post("/api/combo_tester/save_image")
 async def api_combo_tester_save_image(request):

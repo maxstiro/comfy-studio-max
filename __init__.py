@@ -2339,6 +2339,8 @@ def _get_approved_combo_names():
 
 # Modelos oficiais padrão (fallback)
 OFFICIAL_CHECKPOINTS = [
+    r"illustrious\arthemyComics_v80.safetensors",
+    r"illustrious\illustrijBTTR_v10.safetensors",
     r"illustrious\jedpointil_v7VAE.safetensors",
     r"illustrious\waiIllustriousSDXL_v170.safetensors",
 ]
@@ -4771,6 +4773,8 @@ async def get_combo_tester_view(request):
       <div style="margin-bottom:16px;">
         <label style="font-size:11px; text-transform:uppercase; color:#9ca3af; display:block; margin-bottom:4px;">Modelo / Checkpoint:</label>
         <select id="edit-preset-ckpt" class="select-custom" style="width:100%;">
+          <option value="illustrious\\arthemyComics_v80.safetensors">Arthemy Comics v8.0</option>
+          <option value="illustrious\\illustrijBTTR_v10.safetensors">Illustrij BTTR v1.0</option>
           <option value="illustrious\\jedpointil_v7VAE.safetensors">Jedpoint v7</option>
           <option value="illustrious\\waiIllustriousSDXL_v170.safetensors">Wai SDXL v1.7</option>
         </select>

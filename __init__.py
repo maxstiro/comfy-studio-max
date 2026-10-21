@@ -987,10 +987,11 @@ class PromptReviewer:
 
     def review_prompt(self, prompt, resolve_clothing=True, resolve_pose=True, resolve_gaze=True, 
                       resolve_oral=True, auto_lora_triggers=True, deduplicate=True, opt_model=None, opt_lora_triggers=""):
-        import re
+        import re, hashlib
         _try_hook_rgthree()
 
         logs = []
+        prompt_hash_val = int(hashlib.md5(prompt.lower().encode('utf-8')).hexdigest()[:6], 16)
         raw_tags = [t.strip() for t in prompt.split(',') if t.strip()]
         
         # 0. Sanitização Defensiva de Tags Problemáticas Globais
@@ -1387,9 +1388,9 @@ class PromptReviewer:
                 tags = new_tags
                 logs.append(f'[Wallpaper Framing Fixed] Substituido enquadramento fechado {replaced_cameras} por plano ambiental aberto para valorizar o cenario de wallpaper.')
 
-        # 9. Harmonizacao de Duplas Femininas (2girls substituindo 1girl no slot principal, sem duplicar no final)
+        # 9. Harmonizacao de Duplas Femininas (2girls substituindo 1girl no slot principal, SEM multiple_girls)
         full_text_lower = ' '.join(tags).lower()
-        has_2girls = any(k in full_text_lower for k in ['2girls', 'multiple_girls', 'two_girls'])
+        has_2girls = any(k in full_text_lower for k in ['2girls', 'two_girls', 'multiple_girls'])
         if has_2girls:
             # Identificar a posicao original do sujeito (onde 1girl ou solo estavam posicionados)
             target_idx = None
@@ -1408,13 +1409,13 @@ class PromptReviewer:
                 if target_idx is None:
                     target_idx = 0
 
-            # Limpar 1girl/solo e retirar 2girls/multiple_girls de tags compostas posteriores (ex: de wildcards de atividade)
+            # Limpar 1girl/solo e retirar 2girls/multiple_girls de tags compostas posteriores
             cleaned_tags = []
             for t in tags:
                 tl = t.lower().strip()
-                if tl in {'1girl', 'solo', '(1girl)', '(solo)'}:
+                if tl in {'1girl', 'solo', '(1girl)', '(solo)', 'multiple_girls', '(multiple_girls)'}:
                     continue
-                if tl in {'2girls', 'multiple_girls', '2girls, multiple_girls', 'two_girls'}:
+                if tl in {'2girls', 'two_girls', '2girls, multiple_girls'}:
                     continue
                 if '2girls' in tl or 'multiple_girls' in tl or 'two_girls' in tl:
                     parts = [p.strip() for p in t.split(',') if p.strip()]
@@ -1424,11 +1425,11 @@ class PromptReviewer:
                 else:
                     cleaned_tags.append(t)
 
-            # Inserir '2girls, multiple_girls' exatamente na posicao onde 1girl estava
+            # Inserir puramente '2girls' (NUNCA usar multiple_girls para não gerar 3 ou mais garotas)
             final_pos = min(target_idx, len(cleaned_tags))
-            cleaned_tags.insert(final_pos, '2girls, multiple_girls')
+            cleaned_tags.insert(final_pos, '2girls')
             tags = cleaned_tags
-            logs.append(f'[2girls Harmonization] Tag "2girls, multiple_girls" inserida no início (slot {final_pos}), substituindo 1girl/solo e sem vir no final do prompt.')
+            logs.append(f'[2girls Harmonization] Tag "2girls" inserida no início (slot {final_pos}), sem "multiple_girls" para evitar excesso de personagens.')
         # 10. Protecao e Firmeza Anatomica em Camas / Colchoes (Anti-Afundamento de Membros)
         full_text_lower = ' '.join(tags).lower()
         bed_signals = {'bed', 'mattress', 'satin_sheets', 'sheets', 'futon', 'on_bed', 'kneeling_on_bed', 'sitting_on_edge_of_bed'}
@@ -1687,8 +1688,10 @@ class PromptReviewer:
                 logs.append('[Monster LoRA Loaded] LoRA FSEV1.0-000011 acoplado adjacente à Fada.')
 
         # 15. Fantasmas, Poltergeists e Espíritos: Transparência Real e LoRAs Especialistas (SFW / NSFW)
-        ghost_signals = {'ghost_girl', 'ghost', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit', 'ghost_sex'}
-        if any(gs in full_text_lower for gs in ghost_signals):
+        # ESTRITAMENTE para quando a personagem FOR de fato da raça fantasma (evita contaminar bunny_girl, elf, etc.)
+        ghost_races = {'ghost_girl', 'ghost', 'poltergeist', 'phantom', 'spectral_body', 'banshee', 'ethereal_spirit'}
+        is_ghost_race = any(re.search(r'\b' + re.escape(gr) + r'\b', full_text_lower) for gr in ghost_races)
+        if is_ghost_race:
             opaque_skin_tags = {'pale skin', 'porcelain skin', 'tanned skin', 'dark skin', 'solid skin'}
             purged_skin = []
             new_tags = []
@@ -1719,12 +1722,22 @@ class PromptReviewer:
                 if not any('ghost-sfwnsfw' in t.lower() or 'ghost_sex' in t.lower() for t in tags):
                     tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Ghost-SFWNSFW-IL.V1.0-000013:0.85>, ghost, translucent body, see-through body', ['ghost_girl', 'ghost', 'phantom', 'banshee', '1girl'], place='after')
                     logs.append('[Monster LoRA Loaded] LoRA Ghost-SFWNSFW-IL acoplado dinamicamente para personagem fantasma.')
+        else:
+            # Se NÃO for raça fantasma, expurga qualquer menção acidental a ghost sex ou corpo translúcido
+            rogue_ghost = [t for t in tags if any(k in t.lower() for k in ['ghost_sex', 'ghost sex', 'fucking_a_ghost', 'spectral_penetration', 'ghost-sfwnsfw'])]
+            if rogue_ghost:
+                tags = [t for t in tags if t not in rogue_ghost]
+                logs.append(f'[Ghost Purge] Removidos termos de fantasma {rogue_ghost} pois a personagem não é de raça fantasma.')
 
-        # 15.1 Orc Girl: LoRA Especialista Orc e Desobrigação de Dreadlocks
+        # 15.1 Orc Girl: LoRA Especialista Orc (50% de ativação sorteada) e Desobrigação de Dreadlocks
         if any(k in full_text_lower for k in ['orc_girl', 'orc', 'female_orc', 'orc_woman']):
-            if not any('orc-e33' in t.lower() or ('orc' in t.lower() and '<lora:' in t.lower()) for t in tags):
-                tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Orc-e33_s1155:0.85>, orc, orc_girl, green_skin, tusks', ['orc_girl', 'orc', '1girl'], place='after')
-                logs.append('[Monster LoRA Loaded] LoRA Orc-e33_s1155 acoplado adjacente à Orc.')
+            should_activate_orc_lora = (prompt_hash_val % 100 < 50)
+            if should_activate_orc_lora:
+                if not any('orc-e33' in t.lower() or ('orc' in t.lower() and '<lora:' in t.lower()) for t in tags):
+                    tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\Orc-e33_s1155:0.85>, orc, orc_girl, green_skin, tusks', ['orc_girl', 'orc', '1girl'], place='after')
+                    logs.append('[Monster LoRA Loaded] LoRA Orc-e33_s1155 acoplado adjacente à Orc (50% de chance sorteada).')
+            else:
+                logs.append('[Orc Base Style] LoRA Orc-e33_s1155 dispensado nesta geração (50% de chance: estilo Orc nativo do checkpoint).')
 
             # Desobrigação de dreadlocks: não forçar dreadlocks na Orc para permitir variedade de penteados
             if any('dreadlock' in t.lower() for t in tags):
@@ -2333,7 +2346,7 @@ class PromptDropdownBuilder:
                 is_duo = True
 
         if is_duo:
-            tags.append("2girls, multiple_girls")
+            tags.append("2girls")
             interac = pick_val(interacao_dupla, "interacao_2girls.txt")
             if interac:
                 tags.append(interac)
@@ -4189,6 +4202,8 @@ async def api_combo_tester_generate_set(request):
                     ]).lower()
                     if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "arachne", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "spider_lower_body", "tentacles_lower_body"]):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
+                    if "2girls" in all_prompt_texts or "two_girls" in all_prompt_texts:
+                        n37_val += ", 3girls, 4girls, multiple_girls, group"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
 
                 # 5. Escala Dinâmica de CFG de 5.0 até 3.0 (Node 44 - KSampler)

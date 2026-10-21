@@ -1811,6 +1811,8 @@ class PromptReviewer:
         # 18. LoRAs NSFW Especializados sob Demanda Contextual (NUNCA sorteados aleatoriamente)
         import random, hashlib
         full_text_lower = ' '.join(tags).lower()
+        # Hash determinístico do prompt para consistência estrita entre o gerador e o leitor de metadados da galeria
+        prompt_hash_val = int(hashlib.md5(full_text_lower.encode('utf-8')).hexdigest()[:6], 16)
 
         # LoRA 1: Freaky Dicks (50% de chance quando 1boy|1other aparecer no prompt, ou 100% quando pênis/ato explícito for promptado)
         boy_other_match = re.search(r'\b(1boy|1other|male_out_of_frame|faceless_male|large_penis|penis|dick|fdicks)\b', full_text_lower)
@@ -1819,8 +1821,6 @@ class PromptReviewer:
                 'penis', 'large_penis', 'dick', 'cock', 'glans', 'erection', 'fdicks', 'veiny_penis',
                 'vaginal_penetration', 'anal_penetration', 'deep_penetration', 'blowjob', 'fellatio', 'creampie'
             ])
-            # Hash determinístico do prompt para consistência estrita entre o gerador e o leitor de metadados da galeria
-            prompt_hash_val = int(hashlib.md5(full_text_lower.encode('utf-8')).hexdigest()[:6], 16)
             should_activate_fdicks = is_explicit_penis or (prompt_hash_val % 100 < 50)
             if should_activate_fdicks:
                 if not any('1-freaky_dicks' in t.lower() for t in tags):
@@ -1912,27 +1912,51 @@ class PromptReviewer:
                 logs.append('[NSFW LoRA 5 Injected] ChokerSnap acoplado contextualmente ao lado do ato oral profundo.')
 
         # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho)
-        # Exclusivo para raças pequenas / miniatura: fairy, goblin_girl e bee_girl.
-        # NUNCA deve ativar em raças normais ou de estatura padrão (elf, high_elf, dark_elf, human, orc, draenei, etc.)
+        # Compatível com qualquer raça (humana, elfa, orc, etc.) quando em cena de gigante.
+        # Raças pequenas (fairy, goblin_girl, bee_girl, pixie) possuem probabilidade de ativação ampliada.
+        # Garantia posicional estrita: sempre deve conter penetração (vaginal ou anal) e postura corporal compatível (legs_spread, legs_apart, doggy_style, from_behind, all_fours).
+        is_small_race = any(r in full_text_lower for r in ['fairy', 'goblin_girl', 'bee_girl', 'pixie', 'tiny_girl', 'fairy_girl'])
+        has_partner = any(p in full_text_lower for p in ['1boy', '1other', '1boy|1other', 'giant_male', 'male_focus', 'partner'])
         giant_match = any(g in full_text_lower for g in [
             'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
-            'held_in_hand', 'picked_up_by_giant', 'giant_hand', 'giant_fingers'
+            'held_in_hand', 'picked_up_by_giant', 'giant_hand', 'giant_fingers',
+            'held_in_single_giant_hand', 'held_between_fingers'
         ]) or ('giant' in full_text_lower and 'size_difference' in full_text_lower)
-        is_small_race = any(r in full_text_lower for r in ['fairy', 'goblin_girl', 'bee_girl', 'tiny_girl', 'fairy_girl'])
-        is_incompatible_race = any(r in full_text_lower for r in ['elf', 'high_elf', 'dark_elf', 'elf_girl', 'orc', 'draenei', 'amazon', 'tall'])
+
+        # Frequência ampliada para raças pequenas em interações com parceiro
+        if not giant_match and is_small_race and has_partner:
+            if 'size_difference' in full_text_lower or (prompt_hash_val % 100 < 35):
+                giant_match = True
+                tags = insert_contextual(tags, 'giant_male, towering_male, size_difference, held_by_giant, suspended_in_air', ['1boy|1other', '1boy', 'female_focus', '1girl'], place='after')
+                full_text_lower = ' '.join(tags).lower()
+                logs.append('[NSFW LoRA 6 Triggered] HeldByGiant ativado com frequência ampliada para raça pequena.')
+
         if giant_match:
-            if is_incompatible_race and not is_small_race:
-                tags = [t for t in tags if not any(k in t.lower() for k in [
-                    'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
-                    'held_in_single_giant_hand', 'giant_male', 'giant_hand', 'giant_fingers'
-                ])]
-                logs.append('[NSFW LoRA 6 Skipped] HeldByGiant prevenido pois personagem é de raça padrão/elfa.')
-            elif not any('6-heldbygiant' in t.lower() for t in tags):
+            # Garantia posicional e anatômica estrita de penetração
+            has_penetration = any(p in full_text_lower for p in ['vaginal_penetration', 'anal_penetration', 'double_penetration', 'penetration'])
+            if not has_penetration:
+                chosen_penetration = 'anal_penetration' if (prompt_hash_val % 3 == 0) else 'vaginal_penetration'
+                tags = insert_contextual(tags, chosen_penetration, ['held_by_giant', 'size_difference', 'giant_male', 'female_focus', '1girl'], place='after')
+                full_text_lower = ' '.join(tags).lower()
+                logs.append(f'[NSFW LoRA 6 Guarantee] Penetração garantida contextualmente: "{chosen_penetration}".')
+
+            # Garantia de postura anatômica compatível
+            has_position = any(pos in full_text_lower for pos in [
+                'legs_spread', 'spread_legs', 'legs_apart', 'doggy_style', 'from_behind', 'all_fours', 'lifted_from_behind'
+            ])
+            if not has_position:
+                chosen_pos = 'legs_apart, from_behind, doggy_style' if (prompt_hash_val % 2 == 0) else 'legs_spread'
+                tags = insert_contextual(tags, chosen_pos, ['vaginal_penetration', 'anal_penetration', 'held_by_giant', 'size_difference'], place='after')
+                full_text_lower = ' '.join(tags).lower()
+                logs.append(f'[NSFW LoRA 6 Guarantee] Postura anatômica garantida contextualmente: "{chosen_pos}".')
+
+            # Injeção contextual do LoRA e Trigger oficial
+            if not any('6-heldbygiant' in t.lower() for t in tags):
                 lora_tag = '<lora:illustrious\\nsfw\\6-HeldByGiantV2ILLLLLLLLL_epoch_11.safetensors:0.8>'
                 giant_trig = 'HeldByGiantV2ILLLLLLLLL'
-                tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant', 'goblin_girl', 'bee_girl', 'fairy', '1girl', 'female_focus'], place='after')
+                tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant_male', '1boy|1other', '1girl', 'female_focus'], place='after')
                 tags = insert_contextual(tags, giant_trig, [lora_tag, 'held_by_giant', 'size_difference'], place='after')
-                logs.append('[NSFW LoRA 6 Injected] HeldByGiantV2ILLLLLLLLL acoplado contextualmente para cena de gigante.')
+                logs.append('[NSFW LoRA 6 Injected] HeldByGiantV2ILLLLLLLLL acoplado contextualmente.')
 
         # LoRA 7: Lesbian Anal Strap-on (strap-on / pegging)
         strapon_match = any(st in full_text_lower for st in [
@@ -4149,6 +4173,8 @@ async def api_combo_tester_generate_set(request):
                 # Garantir bloqueio de câmeras, velas, peras, cabeças extras/desmembradas e pernas humanas no Node 37 (Negativo base)
                 if "37" in prompt_copy and "inputs" in prompt_copy["37"]:
                     n37_val = str(prompt_copy["37"]["inputs"].get("value", ""))
+                    if "patreon" not in n37_val.lower():
+                        n37_val += ", ((watermark, text, logo, patreon, patreon_logo, patreon_username, website, url, web_address, username, artist_name, signature, copyright, copyright_notice, stamp, social_media_logo, social_media_handle, handle, watermark_text, icon_watermark:1.4))"
                     if "camera" not in n37_val:
                         n37_val += ", camera, tripod, handheld_camera, camera_lens, candles, candle, candlestick, pear, pears, fruit"
                     if "floating_head" not in n37_val:

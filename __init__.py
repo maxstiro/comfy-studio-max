@@ -3984,19 +3984,26 @@ async def api_combo_tester_unsave_image(request):
             saved_list.remove(filename)
             _save_saved_images_list(saved_list)
             
-        # Devolver o arquivo para a pasta tester (se ainda estiver em tester_saved)
+        # Devolver o arquivo para a pasta de origem (tester ou creation)
         dest = TESTER_SAVED_DIR / filename
         if dest.exists() and dest.is_file():
-            TESTER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
             import shutil, time
-            target_restore = TESTER_OUTPUT_DIR / filename
-            if target_restore.exists():
-                target_restore = TESTER_OUTPUT_DIR / f"{dest.stem}_restored_{int(time.time())}{dest.suffix}"
-            shutil.move(str(dest), str(target_restore))
-            # Reseta idade para 0 no testador
-            tracker = _load_rounds_tracker()
-            tracker[target_restore.name] = 0
-            _save_rounds_tracker(tracker)
+            if filename.startswith("create_"):
+                CREATION_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                target_restore = CREATION_OUTPUT_DIR / filename
+                if target_restore.exists():
+                    target_restore = CREATION_OUTPUT_DIR / f"{dest.stem}_restored_{int(time.time())}{dest.suffix}"
+                shutil.move(str(dest), str(target_restore))
+            else:
+                TESTER_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+                target_restore = TESTER_OUTPUT_DIR / filename
+                if target_restore.exists():
+                    target_restore = TESTER_OUTPUT_DIR / f"{dest.stem}_restored_{int(time.time())}{dest.suffix}"
+                shutil.move(str(dest), str(target_restore))
+                # Reseta idade para 0 no testador
+                tracker = _load_rounds_tracker()
+                tracker[target_restore.name] = 0
+                _save_rounds_tracker(tracker)
 
         return web.json_response({"success": True, "saved": False, "message": f"Imagem devolvida para a galeria do testador."})
     except Exception as e:
@@ -4690,18 +4697,40 @@ async def api_creation_save_image(request):
             return web.json_response({"error": "Filename não fornecido"}, status=400)
         src = CREATION_OUTPUT_DIR / filename
         if not src.exists():
+            # Pode já ter sido movido para tester_saved
+            if (TESTER_SAVED_DIR / filename).exists():
+                return web.json_response({"success": True, "message": "Imagem já está guardada!", "saved_filename": filename})
             return web.json_response({"error": f"Arquivo '{filename}' não encontrado em creation"}, status=404)
+            
         TESTER_SAVED_DIR.mkdir(parents=True, exist_ok=True)
         import shutil, time
         dest = TESTER_SAVED_DIR / filename
         if src.resolve() != dest.resolve():
             if dest.exists():
                 dest = TESTER_SAVED_DIR / f"{src.stem}_{int(time.time())}{src.suffix}"
-            shutil.copy2(str(src), str(dest))
+            shutil.move(str(src), str(dest))
+
         saved_list = _load_saved_images_list()
         if dest.name not in saved_list:
             saved_list.append(dest.name)
             _save_saved_images_list(saved_list)
+
+        # Salvar metadados da criação guardada
+        try:
+            saved_meta = _load_tester_saved_metadata()
+            p_text, s_val, l_list, ckpt, c_name = _extract_tester_image_meta(dest)
+            saved_meta[dest.name] = {
+                "checkpoint": ckpt,
+                "loras": l_list,
+                "combo_name": "🎨 Criação Planejada",
+                "prompt": p_text,
+                "seed": s_val,
+                "timestamp": dest.stat().st_mtime
+            }
+            _save_tester_saved_metadata(saved_meta)
+        except Exception as meta_e:
+            print(f"[Creation Save] Aviso ao salvar metadados: {meta_e}")
+
         return web.json_response({"success": True, "message": "Imagem guardada com sucesso!", "saved_filename": dest.name})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)

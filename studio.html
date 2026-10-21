@@ -3851,7 +3851,14 @@
               comboBlock.style.display = 'flex';
               comboBlock.style.alignItems = 'center';
               comboBlock.style.justifyContent = 'center';
-              comboBlock.innerHTML = '<span style="font-size: 0.74rem; font-weight: 700; color: #94a3b8; font-style: italic; letter-spacing: 0.5px;">lostPreset</span>';
+              const isFromCreation = img.filename.startsWith('create_') || (effectiveCombo && effectiveCombo.includes('Criação'));
+              if (isFromCreation) {
+                comboBlock.style.background = 'rgba(99, 102, 241, 0.15)';
+                comboBlock.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+                comboBlock.innerHTML = '<span style="font-size: 0.74rem; font-weight: 700; color: #c7d2fe;">🎨 Criação Planejada</span>';
+              } else {
+                comboBlock.innerHTML = '<span style="font-size: 0.74rem; font-weight: 700; color: #94a3b8; font-style: italic; letter-spacing: 0.5px;">lostPreset</span>';
+              }
             }
           }
           grid.appendChild(card);
@@ -3883,9 +3890,15 @@
               </div>
             </div>
             ` : `
+            ${img.filename.startsWith('create_') || (effectiveCombo && effectiveCombo.includes('Criação')) ? `
+            <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 6px 8px; background: rgba(99, 102, 241, 0.15); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 6px; display: flex; align-items: center; justify-content: center;">
+              <span style="font-size: 0.74rem; font-weight: 700; color: #c7d2fe;">🎨 Criação Planejada</span>
+            </div>
+            ` : `
             <div class="saved-card-combo" style="margin-top: 6px; margin-bottom: 8px; padding: 8px 10px; background: rgba(0,0,0,0.35); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center;">
               <span style="font-size: 0.74rem; font-weight: 700; color: #94a3b8; font-style: italic; letter-spacing: 0.5px;">lostPreset</span>
             </div>
+            `}
             `}
 
             <div class="image-card-actions" style="gap: 5px;">
@@ -5195,17 +5208,17 @@
                   ${promptEscaped}
                 </div>
               ` : ''}
-              <div style="display: flex; gap: 6px; margin-top: 4px;">
-                <button type="button" id="${safeBtnId}" class="btn ${isSaved ? 'btn-success' : 'btn-secondary'} btn-sm" style="flex: 1; font-size: 0.75rem; padding: 4px 6px;" onclick="salvarImagemCriacao('${img.filename}')" title="${isSaved ? 'Imagem guardada' : 'Guardar na Galeria de Guardadas'}">
+              <div class="image-card-actions">
+                <button type="button" id="${safeBtnId}" class="btn-star ${isSaved ? 'active' : ''}" onclick="salvarImagemCriacao('${img.filename}', this)" title="${isSaved ? 'Imagem guardada' : 'Guardar e transferir para a aba Guardadas'}">
                   ${isSaved ? '⭐ Guardada' : '⭐ Guardar'}
                 </button>
-                <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="abrirModalZoomItem('${img.filename}', false, 'creation')" title="Zoom">
+                <button type="button" class="btn-action-icon" onclick="abrirModalZoomItem('${img.filename}', false, 'creation')" title="Zoom">
                   🔍
                 </button>
-                <a href="${img.url}" download="${img.filename}" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px; text-decoration: none; display: inline-flex; align-items: center;" title="Download">
+                <a href="${img.url}" download="${img.filename}" class="btn-action-icon" style="text-decoration: none; display: inline-flex; align-items: center;" title="Download">
                   📥
                 </a>
-                <button type="button" class="btn btn-danger btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="excluirImagemCriacao('${img.filename}')" title="Excluir imagem">
+                <button type="button" class="btn-action-icon" onclick="excluirImagemCriacao('${img.filename}')" title="Excluir imagem" style="color: #f87171;">
                   🗑️
                 </button>
               </div>
@@ -5215,7 +5228,12 @@
       }).join('');
     }
 
-    async function salvarImagemCriacao(filename) {
+    async function salvarImagemCriacao(filename, btnEl) {
+      if (!filename) return;
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.innerText = '⏳ Guardando...';
+      }
       try {
         const res = await fetch('/api/creation/save_image', {
           method: 'POST',
@@ -5224,26 +5242,22 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast('Imagem guardada com sucesso!', 'success');
-          const savedName = data.saved_filename || filename;
-          if (!state.savedImages) state.savedImages = [];
-          if (!state.savedImages.includes(filename)) state.savedImages.push(filename);
-          if (!state.savedImages.includes(savedName)) state.savedImages.push(savedName);
-          const safeBtnId = 'btn-save-create-' + filename.replace(/[^a-zA-Z0-9_-]/g, '_');
-          const btn = document.getElementById(safeBtnId);
-          if (btn) {
-            btn.className = 'btn btn-success btn-sm';
-            btn.innerHTML = '⭐ Guardada';
-            btn.title = 'Imagem guardada na pasta de salvas';
-          }
-          const badge = document.getElementById('saved-count-badge');
-          if (badge) badge.innerText = state.savedImages.length;
-          carregarStatusTester();
+          showToast('⭐ Imagem guardada e transferida para a aba Guardadas!', 'success');
+          await carregarGaleriaCriacao();
+          await carregarStatusTester();
         } else {
           showToast(data.error || 'Erro ao guardar imagem', 'error');
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerText = '⭐ Guardar';
+          }
         }
       } catch (e) {
         showToast('Erro ao guardar imagem: ' + e.message, 'error');
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerText = '⭐ Guardar';
+        }
       }
     }
 

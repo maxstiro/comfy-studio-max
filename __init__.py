@@ -4447,7 +4447,16 @@ async def api_creation_generate(request):
 
         # 1. Configurar Checkpoint (Node 9)
         if "9" in base_prompt and "inputs" in base_prompt["9"]:
-            base_prompt["9"]["inputs"]["ckpt_name"] = ckpt_name
+            available_ckpts = get_available_checkpoints(refresh=False)
+            norm_target = str(ckpt_name).replace("/", "\\").lower().strip()
+            target_base = pathlib.Path(norm_target).name.lower()
+            matched_ckpt = None
+            for c in available_ckpts:
+                norm_c = str(c).replace("/", "\\").lower().strip()
+                if norm_c == norm_target or pathlib.Path(norm_c).name.lower() == target_base:
+                    matched_ckpt = c
+                    break
+            base_prompt["9"]["inputs"]["ckpt_name"] = matched_ckpt if matched_ckpt else ckpt_name
 
         # 2. Configurar Modo SFW / Seguro (Node 2: ON = NSFW | OFF = SFW)
         is_sfw = (prompt_mode == "sfw")

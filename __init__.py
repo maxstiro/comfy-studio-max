@@ -1911,13 +1911,23 @@ class PromptReviewer:
                 tags = insert_contextual(tags, choker_trig, [lora_tag, 'deepthroat', 'blowjob'], place='after')
                 logs.append('[NSFW LoRA 5 Injected] ChokerSnap acoplado contextualmente ao lado do ato oral profundo.')
 
-        # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho - suporta fairy, goblin_girl e bee_girl)
+        # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho)
+        # Exclusivo para raças pequenas / miniatura: fairy, goblin_girl e bee_girl.
+        # NUNCA deve ativar em raças normais ou de estatura padrão (elf, high_elf, dark_elf, human, orc, draenei, etc.)
         giant_match = any(g in full_text_lower for g in [
             'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
             'held_in_hand', 'picked_up_by_giant', 'giant_hand', 'giant_fingers'
         ]) or ('giant' in full_text_lower and 'size_difference' in full_text_lower)
+        is_small_race = any(r in full_text_lower for r in ['fairy', 'goblin_girl', 'bee_girl', 'tiny_girl', 'fairy_girl'])
+        is_incompatible_race = any(r in full_text_lower for r in ['elf', 'high_elf', 'dark_elf', 'elf_girl', 'orc', 'draenei', 'amazon', 'tall'])
         if giant_match:
-            if not any('6-heldbygiant' in t.lower() for t in tags):
+            if is_incompatible_race and not is_small_race:
+                tags = [t for t in tags if not any(k in t.lower() for k in [
+                    'heldbygiant', 'held_by_giant', 'held_in_giant_hand', 'in_giant_hand',
+                    'held_in_single_giant_hand', 'giant_male', 'giant_hand', 'giant_fingers'
+                ])]
+                logs.append('[NSFW LoRA 6 Skipped] HeldByGiant prevenido pois personagem é de raça padrão/elfa.')
+            elif not any('6-heldbygiant' in t.lower() for t in tags):
                 lora_tag = '<lora:illustrious\\nsfw\\6-HeldByGiantV2ILLLLLLLLL_epoch_11.safetensors:0.8>'
                 giant_trig = 'HeldByGiantV2ILLLLLLLLL'
                 tags = insert_contextual(tags, lora_tag, ['held_by_giant', 'size_difference', 'giant', 'goblin_girl', 'bee_girl', 'fairy', '1girl', 'female_focus'], place='after')

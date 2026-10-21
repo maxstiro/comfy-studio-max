@@ -1703,7 +1703,7 @@
             <span id="lbl-saved-total" style="background: rgba(16,185,129,0.18); border: 1px solid rgba(16,185,129,0.35); color: #34d399; font-size: 0.8rem; padding: 3px 12px; border-radius: 999px; font-weight: 600;">0 guardadas</span>
           </div>
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <input type="text" id="input-search-saved" placeholder="🔍 Buscar nas guardadas (ex: create, 00005, Test...)" oninput="filtrarImagensGuardadas(this.value)" style="width: 290px; padding: 7px 14px; font-size: 0.84rem;">
+            <input type="text" id="input-search-saved" placeholder="🔍 Buscar por tag, LoRA, preset, modelo ou nome (ex: wolf, knot, jj, 00005...)" oninput="filtrarImagensGuardadas(this.value)" style="width: 290px; padding: 7px 14px; font-size: 0.84rem;">
             <div class="grid-density-ctrl" style="display: inline-flex; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 2px;">
               <button type="button" class="btn-density" onclick="setGridCardMin('220px', this)" title="Cards compactos (mais colunas)">Compacto</button>
               <button type="button" class="btn-density active" onclick="setGridCardMin('290px', this)" title="Tamanho padrão">Médio</button>
@@ -3750,8 +3750,12 @@
 
         const currentTs = String(img.timestamp || '');
         const imgSrc = `${img.url}?t=${currentTs}`;
+        const loraText = (img.loras || []).map(l => `${l.friendly_name || ''} ${l.lora || ''}`).join(' ');
+        const searchBlob = `${img.filename} ${effectiveCombo || ''} ${img.checkpoint || ''} ${loraText} ${img.prompt || ''} ${img.seed || ''}`.toLowerCase();
+
         let card = existingCards.get(img.filename);
         if (card) {
+          card.setAttribute('data-search', searchBlob);
           const cardImg = card.querySelector('img');
           if (cardImg && cardImg.getAttribute('data-ts') !== currentTs) {
             cardImg.setAttribute('data-ts', currentTs);
@@ -3774,6 +3778,7 @@
           const div = document.createElement('div');
           div.className = 'image-card';
           div.setAttribute('data-filename', img.filename);
+          div.setAttribute('data-search', searchBlob);
           div.innerHTML = `
             <div class="image-card-thumb" style="position: relative;" onclick="abrirModalZoomItem('${img.filename}', false)">
               <span class="rounds-badge-holder">${ageBadge}</span>
@@ -3794,25 +3799,45 @@
           grid.appendChild(div);
         }
       });
+
+      const searchInput = document.getElementById('input-search-saved');
+      if (searchInput && searchInput.value) {
+        filtrarImagensGuardadas(searchInput.value);
+      }
     }
 
-        function filtrarImagensGuardadas(query) {
-      const q = (query || '').toLowerCase().trim();
+    function filtrarImagensGuardadas(query) {
+      const rawQ = (query || '').toLowerCase().trim();
+      const terms = rawQ.split(/\s+/).filter(Boolean);
       const cards = document.querySelectorAll('#saved-images-grid .image-card');
       let visible = 0;
+
+      const metaMap = new Map();
+      if (Array.isArray(state.savedGallery)) {
+        state.savedGallery.forEach(item => {
+          if (item && item.filename) {
+            const loraText = (item.loras || []).map(l => `${l.friendly_name || ''} ${l.lora || ''}`).join(' ');
+            const blob = `${item.filename} ${item.combo_name || ''} ${item.checkpoint || ''} ${loraText} ${item.prompt || ''} ${item.seed || ''}`.toLowerCase();
+            metaMap.set(item.filename, blob);
+          }
+        });
+      }
+
       cards.forEach(card => {
-        const fn = (card.getAttribute('data-filename') || '').toLowerCase();
-        const text = card.innerText.toLowerCase();
-        if (!q || fn.includes(q) || text.includes(q)) {
+        const fn = card.getAttribute('data-filename') || '';
+        const blob = metaMap.get(fn) || (card.getAttribute('data-search') || card.innerText).toLowerCase();
+        const matches = terms.length === 0 || terms.every(term => blob.includes(term));
+        if (matches) {
           card.style.display = '';
           visible++;
         } else {
           card.style.display = 'none';
         }
       });
+
       const lblTotal = document.getElementById('lbl-saved-total');
       if (lblTotal) {
-        lblTotal.textContent = q ? `${visible} de ${cards.length} guardadas` : `${cards.length} guardadas`;
+        lblTotal.textContent = rawQ ? `${visible} de ${cards.length} guardadas` : `${cards.length} guardadas`;
       }
     }
 

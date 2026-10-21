@@ -3143,7 +3143,7 @@
         // Quando o nó 99 ou 46 (SaveImage) grava a imagem, atualiza galeria imediatamente!
         if ((d.node === '99' || d.node === '46') && state.isGenerating) {
           recarregarGaleriaAtiva();
-          addComfyLog(`💾 Imagem gravada no disco (nó #${d.node})`, 'success');
+          addComfyLog(`💾 Imagem gravada no disco (${d.node})`, 'success');
         }
       } else if (t === 'executing') {
         const nodeId = d.node;
@@ -3170,55 +3170,9 @@
             }
           }
         } else {
-          let label = `Processando Nó #${nodeId}`;
-          if (state.activeTaskType === 'refine') {
-            if (nodeId === '1') label = '📥 Carregando Imagem Base';
-            else if (nodeId === '2') label = '📐 Upscaling Lanczos';
-            else if (nodeId === '3' || parseInt(nodeId) >= 20) label = '📦 Carregando Modelos & LoRAs';
-            else if (nodeId === '4' || nodeId === '5') label = '📝 Interpretando Prompts';
-            else if (nodeId === '6') label = '🔄 VAE Encode Latente';
-            else if (nodeId === '7') label = '⚡ KSampler (Refinando Imagem com DPMPP_2M)...';
-            else if (nodeId === '8') label = '🔄 Decodificando VAE';
-            else if (nodeId === '9') label = '🔍 Detector Facial YOLOv8';
-            else if (nodeId === '14') label = '📝 Prompt de Detalhes Faciais';
-            else if (nodeId === '10') label = '✨ FaceDetailer (Refinando Rosto & Expressão)';
-            else if (nodeId === '11') label = '🔍 Detector de Mãos YOLOv8';
-            else if (nodeId === '12') label = '📝 Prompt de Anatomia das Mãos';
-            else if (nodeId === '13') label = '🖐️ HandDetailer (Refinando Mãos & Dedos)';
-            else if (nodeId === '99') label = '💾 Gravando Imagem Refinada';
-          } else if (state.activeTaskType === 'cartoon') {
-            if (nodeId === '1' || nodeId === '2') label = '📥 Ajustando Proporção da Foto';
-            else if (nodeId === '3' || nodeId === '4' || nodeId === '5') label = '🎨 Carregando LoRAs Cartoon';
-            else if (nodeId === '9') label = '⚡ KSampler (Estilizando Imagem Cartoon...)';
-            else if (nodeId === '13') label = '✨ FaceDetailer Cartoon';
-            else if (nodeId === '99') label = '💾 Salvando Variação Cartoon';
-          } else if (state.activeTaskType === 'faceswap') {
-            if (nodeId === '1' || nodeId === '2') label = '👤 Carregando Rosto e Alvos';
-            else if (nodeId === '3') label = '🎭 ReActor (Trocando Rosto...)';
-            else if (nodeId === '8') label = '✨ FaceDetailer (Textura de Pele Realista)';
-            else if (nodeId === '99') label = '💾 Salvando Imagem FaceSwap';
-          } else if (state.activeTaskType === 'pixelart') {
-            if (nodeId === '1' || nodeId === '2') label = '👾 Configurando Canvas Pixel Art';
-            else if (nodeId === '5') label = '⚡ KSampler (Gerando Ícone Pixel Art...)';
-            else if (nodeId === '99') label = '💾 Salvando Ícone';
-          } else if (state.activeTaskType === 'combo_tester') {
-            if (nodeId === '9') label = '📦 Carregando Checkpoint Base';
-            else if (nodeId === '47') label = '⚡ Power LoRA Loader';
-            else if (nodeId === '41' || nodeId === '89') label = '🧠 PromptReviewer (Ajustando Prompts & Triggers)';
-            else if (nodeId === '3') label = '⚡ KSampler (Amostrando Imagem de Teste...)';
-            else if (nodeId === '8') label = '🔄 Decodificando VAE';
-            else if (nodeId === '99') label = '💾 Salvando Imagem de Teste';
-          } else if (state.activeTaskType === 'creation') {
-            if (nodeId === '9' || nodeId === '4') label = '📦 Carregando Checkpoint Base';
-            else if (nodeId === '47' || nodeId === '10' || nodeId === '11') label = '⚡ Conectando LoRAs Selecionados';
-            else if (nodeId === '41' || nodeId === '89' || nodeId === '6' || nodeId === '7') label = '🧠 Processando Prompts & Wildcards';
-            else if (nodeId === '3') label = '⚡ KSampler (Amostrando Criação Planejada...)';
-            else if (nodeId === '8') label = '🔄 Decodificando VAE';
-            else if (nodeId === '95') label = '🖤 Processando Efeito AMOLED';
-            else if (nodeId === '99' || nodeId === '46') label = '💾 Gravando Imagem Criada';
-          }
-          updateProgressUI(null, label, `Nó ${nodeId}`);
-          addComfyLog(`⚙️ [Nó #${nodeId}] ${label}`, 'info');
+          const shortName = getNodeShortLabel(nodeId, state.activeTaskType);
+          updateProgressUI(null, `(${nodeId}) ${shortName}`, `Nó ${nodeId}`);
+          addComfyLog(`⚙️ (${nodeId}) ${shortName}`, 'info');
         }
       } else if (t === 'execution_start') {
         updateProgressUI(5, 'Iniciando pipeline de execução...', 'Executando');
@@ -3233,12 +3187,91 @@
         if (state.isGenerating) {
           finalizarExecucaoAtiva(false);
           const errText = d.exception_message || 'Falha no ComfyUI';
+          const nodeLabel = d.node_id ? `(${d.node_id}) ${getNodeShortLabel(d.node_id, state.activeTaskType)}: ` : '';
           showToast('Erro na execução do nó: ' + errText, 'error');
-          addComfyLog(`❌ Erro no nó ${d.node_id || ''}: ${errText}`, 'error');
+          addComfyLog(`❌ Erro ${nodeLabel}${errText}`, 'error');
           // Limpa fila travada e descarrega modelos da memória para recuperar o sistema
           liberarVramComfyUI(true);
         }
       }
+    }
+
+    // Helper para nomes curtos de nós no log e barra de progresso
+    function getNodeShortLabel(nodeId, taskType) {
+      const n = String(nodeId);
+      if (taskType === 'combo_tester') {
+        if (n === '9') return 'Checkpoint Base';
+        if (n === '47') return 'Power LoRA Loader';
+        if (n === '89') return 'PromptReviewer';
+        if (n === '41') return 'Wildcards Encode';
+        if (n === '44' || n === '3') return 'KSampler';
+        if (n === '45' || n === '8') return 'VAE Decode';
+        if (n === '53') return 'Face Detailer';
+        if (n === '57') return 'Hand Detailer';
+        if (n === '85') return 'Eyes Detailer';
+        if (n === '46' || n === '99') return 'Salvando Imagem';
+        if (n === '1') return 'Orientação/Formato';
+        if (n === '43') return 'Latente Vazio';
+        if (n === '37') return 'Prompt Negativo';
+        if (n === '42') return 'CLIP Negativo';
+      } else if (taskType === 'refine') {
+        if (n === '1') return 'Imagem Base';
+        if (n === '2') return 'Upscale Lanczos';
+        if (n === '3' || parseInt(n) >= 20) return 'Modelos & LoRAs';
+        if (n === '4' || n === '5') return 'Prompts';
+        if (n === '6') return 'VAE Encode';
+        if (n === '7') return 'KSampler Refino';
+        if (n === '8') return 'VAE Decode';
+        if (n === '9') return 'Detector Facial';
+        if (n === '10') return 'Face Detailer';
+        if (n === '11') return 'Detector Mãos';
+        if (n === '12') return 'Prompt Mãos';
+        if (n === '13') return 'Hand Detailer';
+        if (n === '14') return 'Prompt Rosto';
+        if (n === '99') return 'Salvando Refino';
+      } else if (taskType === 'creation') {
+        if (n === '9' || n === '4') return 'Checkpoint Base';
+        if (n === '47' || n === '10' || n === '11') return 'LoRA Loader';
+        if (n === '41' || n === '89' || n === '6' || n === '7') return 'Prompts & Wildcards';
+        if (n === '3' || n === '44') return 'KSampler';
+        if (n === '8' || n === '45') return 'VAE Decode';
+        if (n === '95') return 'Efeito AMOLED';
+        if (n === '99' || n === '46') return 'Salvando Criação';
+      } else if (taskType === 'faceswap') {
+        if (n === '1' || n === '2') return 'Rosto & Alvos';
+        if (n === '3') return 'ReActor FaceSwap';
+        if (n === '8') return 'Face Detailer';
+        if (n === '99') return 'Salvando FaceSwap';
+      } else if (taskType === 'cartoon') {
+        if (n === '1' || n === '2') return 'Proporção Foto';
+        if (n === '3' || n === '4' || n === '5') return 'LoRAs Cartoon';
+        if (n === '9' || n === '3') return 'KSampler Cartoon';
+        if (n === '13') return 'Face Detailer';
+        if (n === '99') return 'Salvando Cartoon';
+      } else if (taskType === 'pixelart') {
+        if (n === '1' || n === '2') return 'Canvas Pixel Art';
+        if (n === '5' || n === '3') return 'KSampler Pixel Art';
+        if (n === '99') return 'Salvando Ícone';
+      }
+
+      const universal = {
+        '9': 'Checkpoint',
+        '44': 'KSampler',
+        '3': 'KSampler',
+        '45': 'VAE Decode',
+        '8': 'VAE Decode',
+        '46': 'Salvando Imagem',
+        '99': 'Salvando Imagem',
+        '47': 'Power LoRA',
+        '89': 'PromptReviewer',
+        '41': 'Wildcards',
+        '53': 'Face Detailer',
+        '57': 'Hand Detailer',
+        '85': 'Eyes Detailer',
+        '95': 'Efeito AMOLED'
+      };
+      return universal[n] || 'Processando';
+    }
     }
 
     // =========================================================================

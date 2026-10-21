@@ -4214,14 +4214,12 @@ async def api_combo_tester_generate_set(request):
 
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
-                # 6. Garantir VAEDecodeTiled no Node 45 para evitar estouro de memória (alloc_cpu OOM)
+                # 6. Garantir VAEDecode nativo no Node 45 (evita kernel crashes de tiled_scale em ROCm/AMD)
                 if "45" in prompt_copy:
-                    prompt_copy["45"]["class_type"] = "VAEDecodeTiled"
+                    prompt_copy["45"]["class_type"] = "VAEDecode"
                     if "inputs" in prompt_copy["45"]:
-                        prompt_copy["45"]["inputs"]["tile_size"] = 512
-                        prompt_copy["45"]["inputs"]["overlap"] = 64
-                        prompt_copy["45"]["inputs"]["temporal_size"] = 64
-                        prompt_copy["45"]["inputs"]["temporal_overlap"] = 8
+                        for k in ["tile_size", "overlap", "temporal_size", "temporal_overlap"]:
+                            prompt_copy["45"]["inputs"].pop(k, None)
 
                 payload = {
                     "prompt": prompt_copy,
@@ -4423,14 +4421,12 @@ async def api_creation_generate(request):
                         dynamic_cfg = 3.0
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
 
-                # 6. Garantir VAEDecodeTiled no Node 45 para evitar estouro de memória (alloc_cpu OOM)
+                # 6. Garantir VAEDecode nativo no Node 45 (evita kernel crashes de tiled_scale em ROCm/AMD)
                 if "45" in prompt_copy:
-                    prompt_copy["45"]["class_type"] = "VAEDecodeTiled"
+                    prompt_copy["45"]["class_type"] = "VAEDecode"
                     if "inputs" in prompt_copy["45"]:
-                        prompt_copy["45"]["inputs"]["tile_size"] = 512
-                        prompt_copy["45"]["inputs"]["overlap"] = 64
-                        prompt_copy["45"]["inputs"]["temporal_size"] = 64
-                        prompt_copy["45"]["inputs"]["temporal_overlap"] = 8
+                        for k in ["tile_size", "overlap", "temporal_size", "temporal_overlap"]:
+                            prompt_copy["45"]["inputs"].pop(k, None)
 
                 payload = {
                     "prompt": prompt_copy,

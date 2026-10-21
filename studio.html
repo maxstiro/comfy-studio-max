@@ -1312,16 +1312,11 @@
       <button id="btn-tab-create" class="tab-btn" onclick="switchTab('tab-create')">
         <span>🎨 Criação Planejada</span>
       </button>
-      <button id="btn-tab-presets" class="tab-btn" onclick="switchTab('tab-presets')">
-        <span>✨ Presets Salvos</span>
-        <span id="presets-count-badge" style="background: rgba(99, 102, 241, 0.22); border: 1px solid rgba(99, 102, 241, 0.45); color: #c7d2fe; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
-      </button>
-      <button id="btn-tab-saved" class="tab-btn" onclick="switchTab('tab-saved')">
-        <span>⭐ Guardadas</span>
-        <span id="saved-count-badge" style="background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.35); color: #34d399; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
-      </button>
       <button class="tab-btn" onclick="switchTab('tab-refine')">
         <span>✨ Tratamento & Refinamento</span>
+      </button>
+      <button id="btn-tab-inpaint" class="tab-btn" onclick="switchTab('tab-inpaint')">
+        <span>🖌️ Refinamento Manual</span>
       </button>
       <button class="tab-btn" onclick="switchTab('tab-cartoon')">
         <span>🎨 Cartoonização</span>
@@ -1332,8 +1327,13 @@
       <button class="tab-btn" onclick="switchTab('tab-pixelart')">
         <span>👾 Pixel Art & Ícones</span>
       </button>
-      <button id="btn-tab-inpaint" class="tab-btn" onclick="switchTab('tab-inpaint')">
-        <span>🖌️ Refinamento Manual</span>
+      <button id="btn-tab-presets" class="tab-btn" onclick="switchTab('tab-presets')">
+        <span>✨ Presets Salvos</span>
+        <span id="presets-count-badge" style="background: rgba(99, 102, 241, 0.22); border: 1px solid rgba(99, 102, 241, 0.45); color: #c7d2fe; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
+      </button>
+      <button id="btn-tab-saved" class="tab-btn" onclick="switchTab('tab-saved')">
+        <span>⭐ Guardadas</span>
+        <span id="saved-count-badge" style="background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.35); color: #34d399; font-size: 0.75rem; padding: 1px 7px; border-radius: 999px;">0</span>
       </button>
     </div>
   </div>
@@ -1702,7 +1702,8 @@
             <span style="font-size: 1.15rem;">⭐ Galeria de Imagens Guardadas</span>
             <span id="lbl-saved-total" style="background: rgba(16,185,129,0.18); border: 1px solid rgba(16,185,129,0.35); color: #34d399; font-size: 0.8rem; padding: 3px 12px; border-radius: 999px; font-weight: 600;">0 guardadas</span>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <input type="text" id="input-search-saved" placeholder="🔍 Buscar nas guardadas (ex: create, 00005, Test...)" oninput="filtrarImagensGuardadas(this.value)" style="width: 290px; padding: 7px 14px; font-size: 0.84rem;">
             <div class="grid-density-ctrl" style="display: inline-flex; background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); border-radius: 8px; padding: 2px;">
               <button type="button" class="btn-density" onclick="setGridCardMin('220px', this)" title="Cards compactos (mais colunas)">Compacto</button>
               <button type="button" class="btn-density active" onclick="setGridCardMin('290px', this)" title="Tamanho padrão">Médio</button>
@@ -3793,6 +3794,26 @@
           grid.appendChild(div);
         }
       });
+    }
+
+        function filtrarImagensGuardadas(query) {
+      const q = (query || '').toLowerCase().trim();
+      const cards = document.querySelectorAll('#saved-images-grid .image-card');
+      let visible = 0;
+      cards.forEach(card => {
+        const fn = (card.getAttribute('data-filename') || '').toLowerCase();
+        const text = card.innerText.toLowerCase();
+        if (!q || fn.includes(q) || text.includes(q)) {
+          card.style.display = '';
+          visible++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      const lblTotal = document.getElementById('lbl-saved-total');
+      if (lblTotal) {
+        lblTotal.textContent = q ? `${visible} de ${cards.length} guardadas` : `${cards.length} guardadas`;
+      }
     }
 
     function renderSavedImages(savedList) {

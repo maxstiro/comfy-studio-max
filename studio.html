@@ -493,6 +493,43 @@
       color: #38bdf8 !important;
     }
 
+    /* CHECKBOXES MODERNOS DARK / CYBER */
+    input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px !important;
+      height: 18px !important;
+      min-width: 18px;
+      min-height: 18px;
+      background-color: #0b0f19 !important;
+      border: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+      border-radius: 4px !important;
+      cursor: pointer;
+      display: inline-grid;
+      place-content: center;
+      transition: all 0.2s ease-in-out;
+      outline: none;
+      vertical-align: middle;
+      position: relative;
+    }
+    input[type="checkbox"]:hover {
+      border-color: #6366f1 !important;
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.35);
+    }
+    input[type="checkbox"]:checked {
+      background-color: #6366f1 !important;
+      border-color: #818cf8 !important;
+      box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+    }
+    input[type="checkbox"]:checked::before {
+      content: "";
+      width: 10px;
+      height: 6px;
+      border-left: 2px solid #ffffff;
+      border-bottom: 2px solid #ffffff;
+      transform: rotate(-45deg) translate(1px, -1px);
+    }
+
     .range-group {
       display: flex;
       align-items: center;
@@ -5135,6 +5172,8 @@
         const lorasCount = (img.loras || []).length;
         const resLabel = img.width && img.height ? `${img.width}x${img.height}` : '';
         const promptEscaped = (img.positive_prompt || '').replace(/"/g, '&quot;');
+        const isSaved = typeof isImageSaved === 'function' ? isImageSaved(img.filename) : false;
+        const safeBtnId = 'btn-save-create-' + img.filename.replace(/[^a-zA-Z0-9_-]/g, '_');
 
         return `
           <div class="image-card" data-filename="${img.filename}">
@@ -5157,8 +5196,8 @@
                 </div>
               ` : ''}
               <div style="display: flex; gap: 6px; margin-top: 4px;">
-                <button type="button" class="btn btn-secondary btn-sm" style="flex: 1; font-size: 0.75rem; padding: 4px 6px;" onclick="salvarImagemCriacao('${img.filename}')" title="Guardar na Galeria de Guardadas">
-                  ⭐ Guardar
+                <button type="button" id="${safeBtnId}" class="btn ${isSaved ? 'btn-success' : 'btn-secondary'} btn-sm" style="flex: 1; font-size: 0.75rem; padding: 4px 6px;" onclick="salvarImagemCriacao('${img.filename}')" title="${isSaved ? 'Imagem guardada' : 'Guardar na Galeria de Guardadas'}">
+                  ${isSaved ? '⭐ Guardada' : '⭐ Guardar'}
                 </button>
                 <button type="button" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="abrirModalZoomItem('${img.filename}', false, 'creation')" title="Zoom">
                   🔍
@@ -5166,6 +5205,9 @@
                 <a href="${img.url}" download="${img.filename}" class="btn btn-secondary btn-sm" style="font-size: 0.75rem; padding: 4px 8px; text-decoration: none; display: inline-flex; align-items: center;" title="Download">
                   📥
                 </a>
+                <button type="button" class="btn btn-danger btn-sm" style="font-size: 0.75rem; padding: 4px 8px;" onclick="excluirImagemCriacao('${img.filename}')" title="Excluir imagem">
+                  🗑️
+                </button>
               </div>
             </div>
           </div>
@@ -5183,12 +5225,53 @@
         const data = await res.json();
         if (data.success) {
           showToast('Imagem guardada com sucesso!', 'success');
+          const savedName = data.saved_filename || filename;
+          if (!state.savedImages) state.savedImages = [];
+          if (!state.savedImages.includes(filename)) state.savedImages.push(filename);
+          if (!state.savedImages.includes(savedName)) state.savedImages.push(savedName);
+          const safeBtnId = 'btn-save-create-' + filename.replace(/[^a-zA-Z0-9_-]/g, '_');
+          const btn = document.getElementById(safeBtnId);
+          if (btn) {
+            btn.className = 'btn btn-success btn-sm';
+            btn.innerHTML = '⭐ Guardada';
+            btn.title = 'Imagem guardada na pasta de salvas';
+          }
+          const badge = document.getElementById('saved-count-badge');
+          if (badge) badge.innerText = state.savedImages.length;
           carregarStatusTester();
         } else {
           showToast(data.error || 'Erro ao guardar imagem', 'error');
         }
       } catch (e) {
         showToast('Erro ao guardar imagem: ' + e.message, 'error');
+      }
+    }
+
+    async function excluirImagemCriacao(filename) {
+      const ok = await showConfirmDialog({
+        title: 'Excluir Imagem Criada',
+        icon: '🗑️',
+        message: `Deseja realmente excluir a imagem <strong>${escapeHtml(filename)}</strong>?<br><span style="font-size: 0.8rem; color: #94a3b8;">Ela será apagada da pasta de criações.</span>`,
+        confirmText: 'Excluir Imagem',
+        isDanger: true
+      });
+      if (!ok) return;
+
+      try {
+        const res = await fetch('/api/creation/delete_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Imagem excluída da criação planejada!', 'info');
+          carregarGaleriaCriacao();
+        } else {
+          showToast(data.error || 'Erro ao excluir imagem', 'error');
+        }
+      } catch (e) {
+        showToast('Erro de conexão ao excluir imagem: ' + e.message, 'error');
       }
     }
 

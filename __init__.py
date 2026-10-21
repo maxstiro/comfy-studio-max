@@ -4431,7 +4431,7 @@ async def api_creation_generate(request):
         chosen_loras = data.get("loras", [])
         prompt_mode = str(data.get("prompt_mode", "custom")).lower().strip()
         custom_prompt = str(data.get("custom_prompt", "")).strip()
-        is_amoled = bool(data.get("is_amoled", False))
+        is_amoled = bool(data.get("is_amoled", data.get("amoled", False)))
         aspect_ratio_param = str(data.get("aspect_ratio", "9:16")).strip().lower()
         steps_param = int(data.get("steps", 28))
         steps_param = max(10, min(80, steps_param))
@@ -4607,6 +4607,22 @@ async def api_creation_generate(request):
                         for k in ["tile_size", "overlap", "temporal_size", "temporal_overlap"]:
                             prompt_copy["45"]["inputs"].pop(k, None)
 
+                # 7. Roteamento AMOLED Estrito (Só ativo quando checkbox marcado)
+                if not is_amoled:
+                    if "46" in prompt_copy and "inputs" in prompt_copy["46"]:
+                        prompt_copy["46"]["inputs"]["images"] = ["45", 0]
+                    if "67" in prompt_copy and "inputs" in prompt_copy["67"]:
+                        prompt_copy["67"]["inputs"]["value"] = False
+                    if "95" in prompt_copy and "inputs" in prompt_copy["95"]:
+                        prompt_copy["95"]["inputs"]["enabled"] = False
+                else:
+                    if "46" in prompt_copy and "inputs" in prompt_copy["46"]:
+                        prompt_copy["46"]["inputs"]["images"] = ["95", 0]
+                    if "67" in prompt_copy and "inputs" in prompt_copy["67"]:
+                        prompt_copy["67"]["inputs"]["value"] = True
+                    if "95" in prompt_copy and "inputs" in prompt_copy["95"]:
+                        prompt_copy["95"]["inputs"]["enabled"] = True
+
                 payload = {
                     "prompt": prompt_copy,
                     "client_id": client_id
@@ -4687,6 +4703,24 @@ async def api_creation_save_image(request):
             saved_list.append(dest.name)
             _save_saved_images_list(saved_list)
         return web.json_response({"success": True, "message": "Imagem guardada com sucesso!", "saved_filename": dest.name})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+@server.PromptServer.instance.routes.post("/api/creation/delete_image")
+async def api_creation_delete_image(request):
+    try:
+        data = await request.json() if request.can_read_body else {}
+        filename = data.get("filename")
+        if not filename:
+            return web.json_response({"error": "Filename não fornecido"}, status=400)
+        target = CREATION_OUTPUT_DIR / filename
+        # Prevenção de Path Traversal
+        if not target.resolve().is_relative_to(CREATION_OUTPUT_DIR.resolve()):
+            return web.json_response({"error": "Acesso não autorizado"}, status=403)
+        if not target.exists():
+            return web.json_response({"error": f"Arquivo '{filename}' não encontrado"}, status=404)
+        target.unlink()
+        return web.json_response({"success": True, "message": "Imagem de criação excluída com sucesso!"})
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 

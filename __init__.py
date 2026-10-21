@@ -2087,6 +2087,8 @@ class PromptReviewer:
                 new_cum_tags.append(t)
         tags = new_cum_tags
 
+        cur_prompt_lower = ' '.join(tags).lower()
+
         # (C.1) Garantia de Fisting de Mao Unica (impede double fisting nao solicitado)
         has_fisting = any(f in cur_prompt_lower for f in ['fisting', 'vaginal_fisting', 'anal_fisting', 'hand_insertion', 'masterfist'])
         has_double = any(df in cur_prompt_lower for df in ['double_fisting', 'two_hands_fisting', 'two_hands_insertion', 'two_fists', 'both_hands_insertion'])

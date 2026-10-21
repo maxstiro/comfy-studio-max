@@ -483,6 +483,15 @@
       box-shadow: 0 0 0 2px var(--accent-glow);
     }
     textarea { resize: vertical; min-height: 80px; }
+    select, select option, select optgroup, datalist {
+      background-color: #0b0f19 !important;
+      color: #f1f5f9 !important;
+      border-color: rgba(255, 255, 255, 0.12) !important;
+    }
+    select option:hover, select option:checked, select option:focus {
+      background-color: #1e293b !important;
+      color: #38bdf8 !important;
+    }
 
     .range-group {
       display: flex;
@@ -1563,7 +1572,7 @@
               <textarea id="create-prompt-text" rows="3" style="width: 100%; background: #0b0c10; border: 1px solid rgba(255,255,255,0.18); color: #fff; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-family: inherit; resize: vertical;" placeholder="Ex: 1girl, draenei, solo, blue skin, horns, warrior, glowing armor, looking at viewer, masterpiece..."></textarea>
             </div>
 
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px;">
               <!-- Resolução -->
               <div class="form-group">
                 <label>Proporção & Resolução</label>
@@ -1590,6 +1599,12 @@
                   <option value="4">4 Imagens</option>
                   <option value="6">6 Imagens</option>
                 </select>
+              </div>
+
+              <!-- Steps Ajustaveis -->
+              <div class="form-group">
+                <label>Steps</label>
+                <input type="number" id="create-input-steps" value="28" min="10" max="60" step="1" style="width: 100%; text-align: center; font-weight: 700; color: #38bdf8;">
               </div>
             </div>
 
@@ -4975,6 +4990,7 @@
       const promptText = (document.getElementById('create-prompt-text')?.value || '').trim();
       const ratio = document.getElementById('create-sel-aspect-ratio')?.value || '9:16';
       const count = parseInt(document.getElementById('create-sel-count')?.value || '2', 10);
+      const stepsVal = parseInt(document.getElementById('create-input-steps')?.value || '28', 10);
       const amoled = document.getElementById('create-chk-amoled')?.checked || false;
       const loras = state.creationConfig?.loras || [];
 
@@ -4999,7 +5015,7 @@
         }
 
         const ckptName = ckpt.split(/[\\/]/).pop();
-        addComfyLog(`🎨 Nova Criação Planejada: ${count} img | ckpt: ${ckptName} | LoRAs: ${loras.length} | Modo: ${promptMode.toUpperCase()}${amoled ? ' | AMOLED' : ''}`, 'info');
+        addComfyLog(`🎨 Nova Criação Planejada: ${count} img | ckpt: ${ckptName} | LoRAs: ${loras.length} | Steps: ${stepsVal} | Modo: ${promptMode.toUpperCase()}${amoled ? ' | AMOLED' : ''}`, 'info');
 
         const res = await fetch('/api/creation/generate', {
           method: 'POST',
@@ -5007,6 +5023,7 @@
           body: JSON.stringify({
             checkpoint: ckpt,
             loras: loras,
+            steps: stepsVal,
             prompt_mode: promptMode,
             custom_prompt: promptText,
             aspect_ratio: ratio,

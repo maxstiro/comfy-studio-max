@@ -516,7 +516,7 @@ FACE_KEYWORDS = [
     'centaur', 'centaur girl', 'mermaid', 'siren', 'elemental', 'water elemental', 'fire elemental', 
     'earth elemental', 'rock elemental', 'air elemental', 'wind elemental', 'ghost', 'ghost girl', 'phantom', 
     'poltergeist', 'skeleton', 'skeleton girl', 'undead', 'arachne', 'minotaur', 'gorgon', 'medusa', 'lamia', 
-    'harpy', 'slime girl', 'dragon girl', 'gargoyle', 'moth girl', 'dryad', 'plant girl', 'cerberus', 'dullahan', 'mummy',
+    'harpy', 'slime girl', 'dragon girl', 'gargoyle', 'moth girl', 'dryad', 'plant girl', 'cerberus', 'mummy',
     'kemonomimi', 'horn', 'horns', 'ear', 'ears', 'fang', 'fangs', 'tusk', 'tusks', 'halo', 'skin', 'dark skin', 
     'pale skin', 'green skin', 'tanned skin', 'translucent skin', 'spectral', 'liquid body', 'flames', 'scales', 
     'chitin', 'skull face', 'glowing eye sockets', 'freckles', 'beauty mark', 'mole', 'robot joints',
@@ -841,9 +841,6 @@ LORA_TRIGGER_REGISTRY = {
     'spreadanusill': 'spreadanusill, spread_anus',
     '4-buttplugs': 'buttplug, anal_object_insertion',
     'buttplugs': 'buttplug, anal_object_insertion',
-    '5-chokersnap_epoch_14': 'ChokerSnap',
-    '5-chokersnap': 'ChokerSnap',
-    'chokersnap': 'ChokerSnap',
     '6-heldbygiantv2illlllllll_epoch_11': 'HeldByGiantV2ILLLLLLLLL',
     '6-heldbygiant': 'HeldByGiantV2ILLLLLLLLL',
     'heldbygiant': 'HeldByGiantV2ILLLLLLLLL',
@@ -1598,6 +1595,9 @@ class PromptReviewer:
                     if not any('alamiaxl' in t.lower() for t in tags):
                         tags = insert_contextual(tags, '<lora:illustrious\\monster_girls\\ALamiaXL_concept-10:0.8>, lamiaxl', ['lamia', '1girl'], place='after')
                         logs.append('[Monster LoRA Loaded] LoRA ALamiaXL_concept-10 acoplado adjacente à lamia.')
+                    if not any('single_snake_tail' in t.lower() for t in tags):
+                        tags = insert_contextual(tags, '(single_snake_tail:1.35), (single_tail:1.3), continuous_serpentine_lower_body', ['lamiaxl', 'lamia', 'snake_lower_body'], place='after')
+                        logs.append('[Lamia Cleanse] Cauda única garantida no positivo ((single_snake_tail:1.35)).')
 
             # Garantir tags positivas de reforço anatômico sem pernas humanas
             if not any('no_human_legs' in t.lower() for t in tags):
@@ -1950,18 +1950,6 @@ class PromptReviewer:
                 tags = insert_contextual(tags, plug_trig, [lora_tag, 'buttplug', 'plug'], place='after')
                 logs.append('[NSFW LoRA 4 Injected] ButtPlugs acoplado contextualmente ao lado da menção de plug.')
 
-        # LoRA 5: ChokerSnap (oral profundo / deepthroat / facefuck / choking)
-        choker_match = any(c in full_text_lower for c in [
-            'chokersnap', 'deepthroat', 'facefuck', 'forced_oral', 'throat_bulge', 
-            'gagging', 'intense_blowjob', 'choking', 'throat_penetration'
-        ])
-        if choker_match:
-            if not any('5-chokersnap' in t.lower() for t in tags):
-                lora_tag = '<lora:illustrious\\nsfw\\5-ChokerSnap_epoch_14.safetensors:0.8>'
-                choker_trig = 'ChokerSnap'
-                tags = insert_contextual(tags, lora_tag, ['deepthroat', 'facefuck', 'blowjob', 'oral', 'large_penis'], place='after')
-                tags = insert_contextual(tags, choker_trig, [lora_tag, 'deepthroat', 'blowjob'], place='after')
-                logs.append('[NSFW LoRA 5 Injected] ChokerSnap acoplado contextualmente ao lado do ato oral profundo.')
 
         # LoRA 6: HeldByGiant (segurada na mão de gigante / diferença extrema de tamanho)
         # Compatível com qualquer raça (humana, elfa, orc, etc.) quando em cena de gigante.
@@ -2561,7 +2549,8 @@ class PromptDropdownBuilder:
             "snake_lower_body", "fish_tail", "horse_lower_body", "tentacles_lower_body"
         ])
         arachne_neg = ", ((wings, fairy_wings, insect_wings, spider_lower_body, giant_spider_abdomen, monster_spider_body:1.5))" if any(k in pos_lower for k in ["arachne", "spider_girl"]) else ""
-        monster_legs_neg = arachne_neg + ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.5))" if non_human_lower else ""
+        lamia_neg = ", ((two_snake_tails, two_tails, multiple_tails, split_tail, extra_tails, second_tail, snake_legs, two_snakes:1.6))" if any(k in pos_lower for k in ["lamia", "serpent_girl", "snake_lower_body"]) else ""
+        monster_legs_neg = arachne_neg + lamia_neg + ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.5))" if non_human_lower else ""
 
         # Bloqueio de auréola/halo indesejado se não for anjo
         is_angel = "angel" in positive_prompt.lower()
@@ -2766,7 +2755,7 @@ def get_sampleable_loras(refresh=False):
         "age_slider", "stabilizer", "monster_girls", "alamia", "amermaid", "arobot", "gorgon", "ghost",
         "draenei", "fsev", "fairy", "orc", "flesh_unit", "gazelle", "pand4w4", "serpent", "navi", "saber",
         "nsfw", "freaky_dicks", "masturbation with dildo", "spreadanus", "buttplug", "penetrator",
-        "chokersnap", "heldbygiant", "5-oral", "7-il_lesbian", "strap-on", "strapon", "lestraabed",
+        "heldbygiant", "5-oral", "7-il_lesbian", "strap-on", "strapon", "lestraabed",
         "8-masterfist", "masterfist"
     ])]
     return sampleable if sampleable else all_l
@@ -4346,6 +4335,8 @@ async def api_combo_tester_generate_set(request):
                         str(v.get("inputs", {}).get("text", "")) + " " + str(v.get("inputs", {}).get("populated_text", "")) + " " + str(v.get("inputs", {}).get("wildcard_text", ""))
                         for v in prompt_copy.values() if isinstance(v, dict)
                     ]).lower()
+                    if any(m in all_prompt_texts for m in ["lamia", "serpent_girl", "serpent_race", "snake_lower_body"]):
+                        n37_val += ", ((two_snake_tails, two_tails, multiple_tails, split_tail, extra_tails, second_tail, snake_legs, two_snakes:1.6))"
                     if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "tentacles_lower_body"]):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     if any(m in all_prompt_texts for m in ["arachne", "spider_girl"]):
@@ -4442,6 +4433,8 @@ async def api_creation_generate(request):
         custom_prompt = str(data.get("custom_prompt", "")).strip()
         is_amoled = bool(data.get("is_amoled", False))
         aspect_ratio_param = str(data.get("aspect_ratio", "9:16")).strip().lower()
+        steps_param = int(data.get("steps", 28))
+        steps_param = max(10, min(80, steps_param))
 
         template_path = COMFY_ROOT / "user" / "default" / "tester_prompt_template.json"
         if not template_path.exists():
@@ -4583,7 +4576,7 @@ async def api_creation_generate(request):
                         "3d_stylized", "oil", "shadow-circuit", "incoth", "jab_illustrious", 
                         "retro_scifi", "retrocom1", "sarafaber", "flat_inking", "detr1mental"
                     ]
-                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in loras)
+                    has_heavy_contrast = any(any(hc in (item.get("lora") or "").lower() for hc in heavy_contrast_stems) for item in active_loras)
 
                     if active_loras_count == 0:
                         dynamic_cfg = 5.0
@@ -4596,6 +4589,7 @@ async def api_creation_generate(request):
                     else:
                         dynamic_cfg = 3.0
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
+                    prompt_copy["44"]["inputs"]["steps"] = steps_param
 
                 # 6. Garantir VAEDecode nativo no Node 45 (evita kernel crashes de tiled_scale em ROCm/AMD)
                 if "45" in prompt_copy:

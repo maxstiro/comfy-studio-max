@@ -833,14 +833,14 @@ LORA_TRIGGER_REGISTRY = {
     'sarafaber-anima': 'sf4b3r-style',
 
     # LoRAs NSFW Específicos sob demanda contextual (NUNCA sortear aleatoriamente)
-    '1-freaky_dicksv3': 'fdicks, veiny penis',
-    'freaky_dicks': 'fdicks, veiny penis',
-    '2-masturbation with dildo (illustrious) v1': 'dildomasturbation, sex toy, dildo',
-    'masturbation with dildo': 'dildomasturbation, sex toy, dildo',
-    '3-spreadanusill': 'spreadanusill, spread anus',
-    'spreadanusill': 'spreadanusill, spread anus',
-    '4-buttplugs': 'buttplug, anal object insertion',
-    'buttplugs': 'buttplug, anal object insertion',
+    '1-freaky_dicksv3': 'fdicks, veiny_penis',
+    'freaky_dicks': 'fdicks, veiny_penis',
+    '2-masturbation with dildo (illustrious) v1': 'dildomasturbation, sex_toy, dildo',
+    'masturbation with dildo': 'dildomasturbation, sex_toy, dildo',
+    '3-spreadanusill': 'spreadanusill, spread_anus',
+    'spreadanusill': 'spreadanusill, spread_anus',
+    '4-buttplugs': 'buttplug, anal_object_insertion',
+    'buttplugs': 'buttplug, anal_object_insertion',
     '5-chokersnap_epoch_14': 'ChokerSnap',
     '5-chokersnap': 'ChokerSnap',
     'chokersnap': 'ChokerSnap',
@@ -1878,34 +1878,34 @@ class PromptReviewer:
                 if not any('1-freaky_dicks' in t.lower() for t in tags):
                     # Seleção inteligente de trigger de variação treinado (por criatura/raça ou rotação criativa completa)
                     if any(w in full_text_lower for w in ['tentacle', 'squid', 'octopus', 'kraken', 'eldritch', 'slime']):
-                        chosen_trig = 'fdicks, tentacle penis, huge penis'
+                        chosen_trig = 'fdicks, tentacle_penis, huge_penis'
                     elif any(w in full_text_lower for w in ['horse', 'centaur', 'stallion', 'equine', 'unicorn', 'donkey']):
-                        chosen_trig = 'fdicks, horse penis, huge penis, equine knot'
+                        chosen_trig = 'fdicks, horse_penis, huge_penis, equine_knot'
                     elif any(w in full_text_lower for w in ['dog', 'wolf', 'canine', 'werewolf', 'fox', 'anubis', 'gnoll', 'kobold', 'hound']):
-                        chosen_trig = 'fdicks, canine penis, knotted, huge penis'
+                        chosen_trig = 'fdicks, canine_penis, knotted, huge_penis'
                     elif any(w in full_text_lower for w in ['dragon', 'lizard', 'reptile', 'demon', 'devil', 'gargoyle', 'succubus', 'incubus']):
-                        chosen_trig = 'fdicks, spiked penis, veiny penis, huge penis'
+                        chosen_trig = 'fdicks, spiked_penis, veiny_penis, huge_penis'
                     elif any(w in full_text_lower for w in ['orc', 'goblin', 'troll', 'ogre', 'monster', 'beast']):
-                        chosen_trig = 'fdicks, bumped penis, huge penis, veiny penis'
+                        chosen_trig = 'fdicks, bumped_penis, huge_penis, veiny_penis'
                     elif any(w in full_text_lower for w in ['alien', 'xenomorph', 'cosmic', 'extraterrestrial']):
-                        chosen_trig = 'fdicks, alien penis, shiny skin'
+                        chosen_trig = 'fdicks, alien_penis, shiny_skin'
                     elif any(w in full_text_lower for w in ['insect', 'bug', 'arachne', 'spider', 'mantis', 'chitin']):
-                        chosen_trig = 'fdicks, segmented penis, realistic'
+                        chosen_trig = 'fdicks, segmented_penis, realistic'
                     elif any(w in full_text_lower for w in ['robot', 'android', 'cyborg', 'mech', 'automaton']):
-                        chosen_trig = 'fdicks, robot penis, shiny skin'
+                        chosen_trig = 'fdicks, robot_penis, shiny_skin'
                     else:
                         # Rotação rica em todas as variações oficiais treinadas do LoRA para parceiros 1boy|1Other
                         all_freaky_variations = [
-                            'fdicks, canine penis, knotted, huge penis',
-                            'fdicks, horse penis, huge penis, equine knot',
-                            'fdicks, tentacle penis, huge penis',
-                            'fdicks, spiked penis, veiny penis',
-                            'fdicks, bumped penis, huge penis',
-                            'fdicks, alien penis, shiny skin, erection',
-                            'fdicks, segmented penis, realistic',
-                            'fdicks, veiny penis, huge penis, realistic',
-                            'fdicks, knotted, huge penis, erection',
-                            'fdicks, robot penis, shiny skin'
+                            'fdicks, canine_penis, knotted, huge_penis',
+                            'fdicks, horse_penis, huge_penis, equine_knot',
+                            'fdicks, tentacle_penis, huge_penis',
+                            'fdicks, spiked_penis, veiny_penis',
+                            'fdicks, bumped_penis, huge_penis',
+                            'fdicks, alien_penis, shiny_skin, erection',
+                            'fdicks, segmented_penis, realistic',
+                            'fdicks, veiny_penis, huge_penis, realistic',
+                            'fdicks, knotted, huge_penis, erection',
+                            'fdicks, robot_penis, shiny_skin'
                         ]
                         chosen_trig = all_freaky_variations[prompt_hash_val % len(all_freaky_variations)]
 
@@ -2066,6 +2066,90 @@ class PromptReviewer:
             bt = re.sub(r'\(([^:()]+):([0-9.]+)\)', _balance_weight, t_flat)
             balanced_tags.append(bt)
         tags = balanced_tags
+
+        # 20. Resoluções Finais de Conflito de Pose e Expansões de Efeito
+        # (A) Conflito de straddling em solo: se for solo, substitui straddling por squatting/kneeling
+        is_solo_scene = any(t.lower() == 'solo' for t in tags) and not any(p in ' '.join(tags).lower() for p in ['1boy', '1other', '2girls', 'partner', 'giant_male'])
+        if is_solo_scene:
+            tags = [re.sub(r'\bstraddling\b', 'squatting, legs_apart', t, flags=re.IGNORECASE) for t in tags]
+
+        # (B) Conflito de contrapposto / hip_cocked com poses no chão ou de costas
+        has_ground_or_back_pose = any(p in ' '.join(tags).lower() for p in ['from_behind', 'lying_on_stomach', 'all_fours', 'doggy_pose', 'curled_up'])
+        if has_ground_or_back_pose:
+            tags = [t for t in tags if t.lower() not in ['contrapposto', 'hip_cocked', 'leaning_forward']]
+
+        # (C) Potencialização de lots_of_cum para efeito real de sêmen abundante e espesso no Illustrious
+        new_cum_tags = []
+        for t in tags:
+            if 'lots_of_cum' in t.lower() and 'thick_cum' not in t.lower():
+                new_cum_tags.append('((lots_of_cum, thick_cum, copious_cum, excessive_cum, cum_dripping:1.3)), (covered_in_cum:1.2), white_cum')
+            else:
+                new_cum_tags.append(t)
+        tags = new_cum_tags
+
+        # (D) Contraste de parceiro para 1boy|1Other (evita color/race bleeding da garota)
+        cur_prompt_lower = ' '.join(tags).lower()
+        if any(p in cur_prompt_lower for p in ['1boy', '1other', '1boy|1other', 'male_focus']) and not any(r in cur_prompt_lower for r in ['orc_male', 'dark_skin_male', 'demon_male', 'beastman_male', 'pale_skin_male', 'elf_male', 'faceless_male', 'tanned_skin_male', 'giant_male']):
+            partner_contrasts = [
+                'orc_male, green_skin, muscular_orc, tusks, broad_shoulders, clawed_hands',
+                'dark_skin_male, muscular_male, toned_torso, vascular_arms, defined_muscles',
+                'tanned_skin_male, athletic_build, rough_hands, muscular_back',
+                'demon_male, dark_red_skin, black_horns, muscular_frame, sharp_claws',
+                'pale_skin_male, tall_male, lean_muscles, defined_abs, broad_shoulders',
+                'beastman_male, furry_arms, clawed_fingers, animal_ears, muscular_body',
+                'faceless_male, dark_silhouette, muscular_figure, tall_male, heavy_shadows',
+                'elf_male, pointed_ears, slender_male, fair_skin'
+            ]
+            chosen_partner = partner_contrasts[prompt_hash_val % len(partner_contrasts)]
+            tags = insert_contextual(tags, chosen_partner, ['1boy|1other', '1boy', '1other', 'female_focus'], place='after')
+            logs.append(f'[Partner Contrast] Parceiro qualificado com contraste enriquecido: "{chosen_partner.split(",")[0]}".')
+
+        # (E) Passada final rigorosa de normalização Danbooru (garante underscores em tags de pênis, LoRA e corpo)
+        final_danbooru_fixes = [
+            (r'\b([a-zA-Z0-9_-]+)\s+penis\b', r'\1_penis'),
+            (r'\b([a-zA-Z0-9_-]+)\s+hair\b', r'\1_hair'),
+            (r'\b([a-zA-Z0-9_-]+)\s+eyes\b', r'\1_eyes'),
+            (r'\bspread\s+anus\b', 'spread_anus'),
+            (r'\bsex\s+toy\b', 'sex_toy'),
+            (r'\banal\s+object\s+insertion\b', 'anal_object_insertion'),
+            (r'\bequine\s+knot\b', 'equine_knot'),
+            (r'\bshiny\s+skin\b', 'shiny_skin'),
+            (r'\brule\s+of\s+thirds\b', 'rule_of_thirds'),
+            (r'\bbest\s+quality\b', 'best_quality'),
+            (r'\btop\s+quality\b', 'top_quality'),
+            (r'\bvery\s+aesthetic\b', 'very_aesthetic'),
+            (r'\bhighly\s+aesthetic\b', 'highly_aesthetic'),
+            (r'\bstunning\s+illustration\b', 'stunning_illustration'),
+            (r'\bdetailed\s+artwork\b', 'detailed_artwork'),
+            (r'\bsee\s+through\s+body\b', 'see-through_body'),
+            (r'\btranslucent\s+body\b', 'translucent_body'),
+            (r'\btwo\s+legs\b', 'two_legs'),
+            (r'\bmultiple\s+legs\b', 'multiple_legs'),
+            (r'\bmissile\s+pod\b', 'missile_pod'),
+            (r'\bholding\s+railgun\b', 'holding_railgun'),
+            (r'\bholding\s+cannon\b', 'holding_cannon'),
+            (r'\bholding\s+gatling\s+gun\b', 'holding_gatling_gun'),
+            (r'\bglowing\s+eyes\b', 'glowing_eyes'),
+            (r'\bvaginal\s+object\s+insertion\b', 'vaginal_object_insertion'),
+            (r'\bbare\s+breasts\b', 'bare_breasts'),
+            (r'\bbare\s+pussy\b', 'bare_pussy'),
+            (r'\bbare\s+anus\b', 'bare_anus'),
+            (r'\bparted\s+lips\b', 'parted_lips'),
+            (r'\bopen\s+mouth\b', 'open_mouth'),
+            (r'\bclosed\s+eyes\b', 'closed_eyes'),
+            (r'\blying\s+on\s+back\b', 'lying_on_back'),
+            (r'\blying\s+on\s+stomach\b', 'lying_on_stomach'),
+            (r'\blegs\s+spread\b', 'legs_spread'),
+            (r'\b(arched|arching)\s+back\b', 'arched_back'),
+        ]
+        cleansed_tags = []
+        for t in tags:
+            clean_t = t
+            if not clean_t.startswith('<') and not clean_t.startswith('('):
+                for pat, rep in final_danbooru_fixes:
+                    clean_t = re.sub(pat, rep, clean_t, flags=re.IGNORECASE)
+            cleansed_tags.append(clean_t)
+        tags = cleansed_tags
 
         reviewed_prompt = ', '.join(tags)
         log_summary = '\n'.join(logs) if logs else '[OK] Nenhum conflito detectado no prompt.'
@@ -4247,6 +4331,11 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
                     if any(m in all_prompt_texts for m in ["arachne", "spider_girl"]):
                         n37_val += ", ((wings, fairy_wings, insect_wings, spider_lower_body, giant_spider_abdomen, monster_spider_body:1.5))"
+                    if not any(g in all_prompt_texts for g in ["ghost_girl", "poltergeist", "phantom", "spectral", "spirit_girl"]):
+                        n37_val += ", ((ghost, spirit, wisp, phantom, slime_creature, mascot, pet, floating_creature, familiar, small_ghost, cute_ghost:1.4))"
+                    if not any(f in all_prompt_texts for f in ["fisting", "vaginal_fisting", "anal_fisting", "hand_insertion"]):
+                        n37_val += ", ((fisting, hand_insertion, double_fisting, two_hands_insertion:1.4))"
+                    n37_val += ", ((watermark, text, signature, artist_name, signature_on_bottom, artist_signature, copyright, copyright_notice, logo, stamp, username, patreon_logo, website_watermark:1.6))"
                     if "2girls" in all_prompt_texts or "two_girls" in all_prompt_texts:
                         n37_val += ", 3girls, 4girls, multiple_girls, group"
                     prompt_copy["37"]["inputs"]["value"] = n37_val

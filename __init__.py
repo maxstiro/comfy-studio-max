@@ -2087,22 +2087,37 @@ class PromptReviewer:
                 new_cum_tags.append(t)
         tags = new_cum_tags
 
-        # (D) Contraste de parceiro para 1boy|1Other (evita color/race bleeding da garota)
+        # (C.1) Garantia de Fisting de Mao Unica (impede double fisting nao solicitado)
+        has_fisting = any(f in cur_prompt_lower for f in ['fisting', 'vaginal_fisting', 'anal_fisting', 'hand_insertion', 'masterfist'])
+        has_double = any(df in cur_prompt_lower for df in ['double_fisting', 'two_hands_fisting', 'two_hands_insertion', 'two_fists', 'both_hands_insertion'])
+        if has_fisting and not has_double:
+            if not any('single_hand_fisting' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '(single_hand_fisting:1.25), (one_hand_insertion:1.25)', ['vaginal_fisting', 'anal_fisting', 'fisting', 'inpussy', 'inass', 'masterfist'], place='after')
+                logs.append('[Fisting Enforcement] Fisting de mao unica garantido no positivo ((single_hand_fisting:1.25)).')
+
+        # (C.2) Reforco de Corpo Espectral para Garota Fantasma (impede humana normal com mascote)
+        is_ghost_race = any(g in cur_prompt_lower for g in ['ghost_girl', 'poltergeist', 'phantom_girl', 'spectral_body'])
+        if is_ghost_race:
+            if not any('translucent_skin' in t.lower() for t in tags):
+                tags = insert_contextual(tags, '(translucent_skin:1.3), (spectral_body:1.3), (see-through_body:1.3), glowing_spectral_skin', ['ghost_girl', 'poltergeist_girl', 'phantom_girl', '1girl'], place='after')
+                logs.append('[Ghost Enhancement] Corpo espectral/translucido reforcado na garota.')
+
+        # (D) Contraste de parceiro para 1boy|1Other (100% male_out_of_frame, foco total na garota, sem elfos)
         cur_prompt_lower = ' '.join(tags).lower()
-        if any(p in cur_prompt_lower for p in ['1boy', '1other', '1boy|1other', 'male_focus']) and not any(r in cur_prompt_lower for r in ['orc_male', 'dark_skin_male', 'demon_male', 'beastman_male', 'pale_skin_male', 'elf_male', 'faceless_male', 'tanned_skin_male', 'giant_male']):
+        if any(p in cur_prompt_lower for p in ['1boy', '1other', '1boy|1other', 'male_focus']) and not any(r in cur_prompt_lower for r in ['orc_male', 'dark_skin_male', 'demon_male', 'beastman_male', 'pale_skin_male', 'faceless_male', 'tanned_skin_male', 'wolfman_male']):
             partner_contrasts = [
-                'orc_male, green_skin, muscular_orc, tusks, broad_shoulders, clawed_hands',
-                'dark_skin_male, muscular_male, toned_torso, vascular_arms, defined_muscles',
-                'tanned_skin_male, athletic_build, rough_hands, muscular_back',
-                'demon_male, dark_red_skin, black_horns, muscular_frame, sharp_claws',
-                'pale_skin_male, tall_male, lean_muscles, defined_abs, broad_shoulders',
-                'beastman_male, furry_arms, clawed_fingers, animal_ears, muscular_body',
-                'faceless_male, dark_silhouette, muscular_figure, tall_male, heavy_shadows',
-                'elf_male, pointed_ears, slender_male, fair_skin'
+                'male_out_of_frame, faceless_male, orc_male, green_skin, muscular_hands, claws, broad_hands, rough_skin',
+                'male_out_of_frame, faceless_male, dark_skin_male, large_hands, muscular_hands, strong_grip, veins',
+                'male_out_of_frame, faceless_male, tanned_skin_male, rough_hands, strong_grip, veins, muscular_forearms',
+                'male_out_of_frame, faceless_male, demon_male, dark_red_skin, sharp_claws, clawed_hands',
+                'male_out_of_frame, faceless_male, pale_skin_male, vascular_arms, firm_hands, strong_grip',
+                'male_out_of_frame, faceless_male, beastman_male, furry_arms, animal_claws, strong_hands',
+                'male_out_of_frame, faceless_male, dark_silhouette, shadowy_hands, strong_grip',
+                'male_out_of_frame, faceless_male, orc_male, dark_green_skin, muscular_forearms, large_hands'
             ]
             chosen_partner = partner_contrasts[prompt_hash_val % len(partner_contrasts)]
             tags = insert_contextual(tags, chosen_partner, ['1boy|1other', '1boy', '1other', 'female_focus'], place='after')
-            logs.append(f'[Partner Contrast] Parceiro qualificado com contraste enriquecido: "{chosen_partner.split(",")[0]}".')
+            logs.append(f'[Partner Contrast] Parceiro out_of_frame qualificado com contraste: "{chosen_partner.split(",")[2].strip()}".')
 
         # (E) Passada final rigorosa de normalização Danbooru (garante underscores em tags de pênis, LoRA e corpo)
         final_danbooru_fixes = [
@@ -2555,7 +2570,9 @@ class PromptDropdownBuilder:
         else:
             # Em NSFW: bloqueia explicitamente toalhas aleatórias e calcinhas/roupas esticadas pela metade
             nsfw_cleaners = ", towel, bath_towel, slipping_towel, panties_aside, pulled_aside, bloomers_pulled_aside, half-undressed, clothes_pull, torn_clothes"
-            negative_prompt = f"general, censored, mosaic censoring, 1futa{halo_neg}{nsfw_cleaners}{monster_legs_neg}, {quality_neg}"
+            ghost_neg = ", ((solid_opaque_skin, normal_human_skin, mascot, pet, floating_creature, cute_ghost, small_ghost, companion, familiar, separate_ghost, wisp_creature:1.5))" if any(g in pos_lower for g in ["ghost", "poltergeist", "phantom", "spectral"]) else ", ((ghost, spirit, wisp, phantom, slime_creature, mascot, pet, floating_creature, familiar, small_ghost, cute_ghost:1.4))"
+            fist_neg = ", ((double_fisting, two_hands_fisting, two_hands_insertion, two_fists:1.6))" if any(f in pos_lower for f in ["fisting", "hand_insertion"]) and not any(df in pos_lower for df in ["double_fisting", "two_hands"]) else (", ((fisting, hand_insertion, double_fisting, two_hands_insertion:1.4))" if not any(f in pos_lower for f in ["fisting", "hand_insertion"]) else "")
+            negative_prompt = f"general, censored, mosaic censoring, 1futa{halo_neg}{nsfw_cleaners}{monster_legs_neg}{ghost_neg}{fist_neg}, {quality_neg}"
 
         return (positive_prompt, negative_prompt)
 
@@ -4333,8 +4350,15 @@ async def api_combo_tester_generate_set(request):
                         n37_val += ", ((wings, fairy_wings, insect_wings, spider_lower_body, giant_spider_abdomen, monster_spider_body:1.5))"
                     if not any(g in all_prompt_texts for g in ["ghost_girl", "poltergeist", "phantom", "spectral", "spirit_girl"]):
                         n37_val += ", ((ghost, spirit, wisp, phantom, slime_creature, mascot, pet, floating_creature, familiar, small_ghost, cute_ghost:1.4))"
-                    if not any(f in all_prompt_texts for f in ["fisting", "vaginal_fisting", "anal_fisting", "hand_insertion"]):
+                    else:
+                        n37_val += ", ((solid_opaque_skin, normal_human_skin, mascot, pet, floating_creature, cute_ghost, small_ghost, companion, familiar, separate_ghost, wisp_creature:1.5))"
+                    
+                    has_fisting_call = any(f in all_prompt_texts for f in ["fisting", "vaginal_fisting", "anal_fisting", "hand_insertion"])
+                    has_double_fisting_call = any(df in all_prompt_texts for df in ["double_fisting", "two_hands_fisting", "two_hands_insertion", "two_fists"])
+                    if not has_fisting_call:
                         n37_val += ", ((fisting, hand_insertion, double_fisting, two_hands_insertion:1.4))"
+                    elif not has_double_fisting_call:
+                        n37_val += ", ((double_fisting, two_hands_fisting, two_hands_insertion, two_fists, both_hands_insertion:1.6))"
                     n37_val += ", ((watermark, text, signature, artist_name, signature_on_bottom, artist_signature, copyright, copyright_notice, logo, stamp, username, patreon_logo, website_watermark:1.6))"
                     if "2girls" in all_prompt_texts or "two_girls" in all_prompt_texts:
                         n37_val += ", 3girls, 4girls, multiple_girls, group"

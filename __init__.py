@@ -1018,6 +1018,46 @@ class PromptReviewer:
             elif 'silhouette' in ct.lower():
                 ct = re.sub(r'\b(dark\s+|black\s+|nude\s+|body\s+)?silhouette\b', 'dramatic_rim_light, subtle_backlighting', ct, flags=re.IGNORECASE)
                 logs.append('[Silhouette Softened] Suavizado termo "silhouette" para iluminação de destaque.')
+            # Normalizacao de tags Danbooru comuns com espacos simples para formato de underscore
+            danbooru_space_fixes = [
+                (r'\b([a-zA-Z0-9_-]+)\s+hair\b', r'\1_hair'),
+                (r'\b([a-zA-Z0-9_-]+)\s+eyes\b', r'\1_eyes'),
+                (r'\brule\s+of\s+thirds\b', 'rule_of_thirds'),
+                (r'\bcinematic\s+angle\b', 'cinematic_angle'),
+                (r"\b(worm's\s+eye\s+view|worm's\s+eye\s+perspective)\b", "worm's-eye_view"),
+                (r'\blooking\s+up\b', 'looking_up'),
+                (r'\blooking\s+down\b', 'looking_down'),
+                (r'\bbest\s+quality\b', 'best_quality'),
+                (r'\btop\s+quality\b', 'top_quality'),
+                (r'\bvery\s+aesthetic\b', 'very_aesthetic'),
+                (r'\bhighly\s+aesthetic\b', 'highly_aesthetic'),
+                (r'\bstunning\s+illustration\b', 'stunning_illustration'),
+                (r'\bdetailed\s+artwork\b', 'detailed_artwork'),
+                (r'\b(simple|white|black|grey|gray)\s+background\b', r'\1_background'),
+                (r'\bsee\s+through\s+body\b', 'see-through_body'),
+                (r'\btranslucent\s+body\b', 'translucent_body'),
+                (r'\btwo\s+legs\b', 'two_legs'),
+                (r'\bmultiple\s+legs\b', 'multiple_legs'),
+                (r'\bmissile\s+pod\b', 'missile_pod'),
+                (r'\bholding\s+railgun\b', 'holding_railgun'),
+                (r'\bholding\s+cannon\b', 'holding_cannon'),
+                (r'\bholding\s+gatling\s+gun\b', 'holding_gatling_gun'),
+                (r'\bglowing\s+eyes\b', 'glowing_eyes'),
+                (r'\bvaginal\s+object\s+insertion\b', 'vaginal_object_insertion'),
+                (r'\bbare\s+breasts\b', 'bare_breasts'),
+                (r'\bbare\s+pussy\b', 'bare_pussy'),
+                (r'\bbare\s+anus\b', 'bare_anus'),
+                (r'\bparted\s+lips\b', 'parted_lips'),
+                (r'\bopen\s+mouth\b', 'open_mouth'),
+                (r'\bclosed\s+eyes\b', 'closed_eyes'),
+                (r'\blying\s+on\s+back\b', 'lying_on_back'),
+                (r'\blying\s+on\s+stomach\b', 'lying_on_stomach'),
+                (r'\blegs\s+spread\b', 'legs_spread'),
+                (r'\b(arched|arching)\s+back\b', 'arched_back'),
+            ]
+            if not ct.startswith('<') and not ct.startswith('('):
+                for pat, rep in danbooru_space_fixes:
+                    ct = re.sub(pat, rep, ct, flags=re.IGNORECASE)
             sanitized_raw.append(ct)
         raw_tags = sanitized_raw
 
@@ -1493,8 +1533,7 @@ class PromptReviewer:
             'centaur_girl': ('corpo equino de 4 patas', '(equine_slit:1.4), (matching_equine_skin:1.3), horse_tail_raised'),
             'mermaid': ('cauda de peixe aquatica', '(aquatic_slit:1.4), (matching_scales_color:1.3), fish_slit'),
             'lamia': ('cauda serpentina', '(snake_slit:1.4), (matching_scales_color:1.3), reptilian_slit'),
-            'arachne': ('corpo de aranha com 8 patas', '(chitinous_slit:1.4), (matching_chitin_color:1.3), spider_slit'),
-            'scylla': ('tentaculos aquaticos', '(tentacle_slit:1.4), (matching_tentacles_color:1.3), tentacles_parted'),
+                        'scylla': ('tentaculos aquaticos', '(tentacle_slit:1.4), (matching_tentacles_color:1.3), tentacles_parted'),
             'scylla_girl': ('tentaculos aquaticos', '(tentacle_slit:1.4), (matching_tentacles_color:1.3), tentacles_parted'),
             'slime_girl': ('corpo de slime translucido', '(translucent_slit:1.4), (liquid_pussy:1.3), matching_slime_color, gelatinous_slit')
         }
@@ -1937,12 +1976,13 @@ class PromptReviewer:
         ]) or ('giant' in full_text_lower and 'size_difference' in full_text_lower)
 
         # Frequência ampliada para raças pequenas em interações com parceiro
-        if not giant_match and is_small_race and has_partner:
-            if 'size_difference' in full_text_lower or (prompt_hash_val % 100 < 35):
+        if not giant_match and has_partner:
+            threshold = 35 if is_small_race else 10
+            if 'size_difference' in full_text_lower or (prompt_hash_val % 100 < threshold):
                 giant_match = True
                 tags = insert_contextual(tags, 'giant_male, towering_male, size_difference, held_by_giant, suspended_in_air', ['1boy|1other', '1boy', 'female_focus', '1girl'], place='after')
                 full_text_lower = ' '.join(tags).lower()
-                logs.append('[NSFW LoRA 6 Triggered] HeldByGiant ativado com frequência ampliada para raça pequena.')
+                logs.append(f'[NSFW LoRA 6 Triggered] HeldByGiant ativado contextualmente (chance: {threshold}%).')
 
         if giant_match:
             # Garantia posicional e anatômica estrita de penetração
@@ -2416,10 +2456,11 @@ class PromptDropdownBuilder:
         # Detecção de monstros sem pernas humanas (centauro, sereia, lamia, aracne, scylla, etc)
         pos_lower = positive_prompt.lower()
         non_human_lower = any(k in pos_lower for k in [
-            "centaur", "mermaid", "lamia", "arachne", "scylla",
-            "snake_lower_body", "fish_tail", "horse_lower_body", "spider_lower_body", "tentacles_lower_body"
+            "centaur", "mermaid", "lamia", "scylla",
+            "snake_lower_body", "fish_tail", "horse_lower_body", "tentacles_lower_body"
         ])
-        monster_legs_neg = ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.5))" if non_human_lower else ""
+        arachne_neg = ", ((wings, fairy_wings, insect_wings, spider_lower_body, giant_spider_abdomen, monster_spider_body:1.5))" if any(k in pos_lower for k in ["arachne", "spider_girl"]) else ""
+        monster_legs_neg = arachne_neg + ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.5))" if non_human_lower else ""
 
         # Bloqueio de auréola/halo indesejado se não for anjo
         is_angel = "angel" in positive_prompt.lower()
@@ -2525,7 +2566,7 @@ def _advance_tester_rounds_and_cleanup():
 
     for fname, fpath in current_files.items():
         age = tracker.get(fname, 0) + 1
-        if age >= 6:
+        if age >= 3:
             try:
                 trash_dir.mkdir(parents=True, exist_ok=True)
                 dest = trash_dir / fname
@@ -3389,6 +3430,8 @@ async def api_combo_tester_status(request):
                     continue
                 p_text, s_val, l_list, ckpt, c_name = _extract_tester_image_meta(img)
                 age = rounds_tracker.get(img.name, 0)
+                if age >= 3:
+                    continue
                 tester_images.append({
                     "filename": img.name,
                     "url": f"/tester_images/{img.name}",
@@ -4200,8 +4243,10 @@ async def api_combo_tester_generate_set(request):
                         str(v.get("inputs", {}).get("text", "")) + " " + str(v.get("inputs", {}).get("populated_text", "")) + " " + str(v.get("inputs", {}).get("wildcard_text", ""))
                         for v in prompt_copy.values() if isinstance(v, dict)
                     ]).lower()
-                    if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "arachne", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "spider_lower_body", "tentacles_lower_body"]):
+                    if any(m in all_prompt_texts for m in ["centaur", "mermaid", "lamia", "scylla", "snake_lower_body", "fish_tail", "horse_lower_body", "tentacles_lower_body"]):
                         n37_val += ", ((human_legs, human_feet, feet, toes, human_knees, two_legs, bipedal, standing_on_human_legs, extra_legs:1.6))"
+                    if any(m in all_prompt_texts for m in ["arachne", "spider_girl"]):
+                        n37_val += ", ((wings, fairy_wings, insect_wings, spider_lower_body, giant_spider_abdomen, monster_spider_body:1.5))"
                     if "2girls" in all_prompt_texts or "two_girls" in all_prompt_texts:
                         n37_val += ", 3girls, 4girls, multiple_girls, group"
                     prompt_copy["37"]["inputs"]["value"] = n37_val
@@ -4228,6 +4273,7 @@ async def api_combo_tester_generate_set(request):
                         dynamic_cfg = 3.0
 
                     prompt_copy["44"]["inputs"]["cfg"] = dynamic_cfg
+                    prompt_copy["44"]["inputs"]["steps"] = 28
 
                 # 6. Garantir VAEDecode nativo no Node 45 (evita kernel crashes de tiled_scale em ROCm/AMD)
                 if "45" in prompt_copy:
